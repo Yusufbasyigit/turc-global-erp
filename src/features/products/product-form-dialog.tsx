@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useForm, Controller, useWatch, type Resolver } from "react-hook-form";
+import {
+  useForm,
+  Controller,
+  useWatch,
+  type FieldPath,
+  type Resolver,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   useMutation,
@@ -9,7 +15,14 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Image as ImageIcon, Package, Trash2, Upload } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Image as ImageIcon,
+  Trash2,
+  Upload,
+} from "lucide-react";
 
 import {
   Dialog,
@@ -49,6 +62,79 @@ import {
   type ProductFormOutput,
   type ProductFormValues,
 } from "./schema";
+
+type StepId =
+  | "basics"
+  | "client"
+  | "photo"
+  | "pricing"
+  | "logistics"
+  | "packaging";
+
+const STEPS: {
+  id: StepId;
+  title: string;
+  description: string;
+  fields: FieldPath<ProductFormValues>[];
+}[] = [
+  {
+    id: "basics",
+    title: "Basics",
+    description: "Internal identifiers you use day-to-day.",
+    fields: [
+      "product_name",
+      "category_id",
+      "default_supplier",
+      "unit",
+      "barcode_value",
+      "is_active",
+    ],
+  },
+  {
+    id: "client",
+    title: "Client-facing",
+    description:
+      "How this product appears on proposals and client-visible documents.",
+    fields: ["client_product_name", "client_description"],
+  },
+  {
+    id: "photo",
+    title: "Photo",
+    description: "JPG, PNG, or WebP up to 5MB.",
+    fields: ["product_image"],
+  },
+  {
+    id: "pricing",
+    title: "Pricing",
+    description: "Defaults only — orders take a snapshot at line-item time.",
+    fields: [
+      "est_purchase_price",
+      "est_currency",
+      "default_sales_price",
+      "sales_currency",
+      "kdv_rate",
+    ],
+  },
+  {
+    id: "logistics",
+    title: "Logistics",
+    description:
+      "Used for container-fit calculations and shipping estimates.",
+    fields: ["cbm_per_unit", "weight_kg_per_unit"],
+  },
+  {
+    id: "packaging",
+    title: "Packaging",
+    description: "Pick a packaging type to reveal dimension fields.",
+    fields: [
+      "packaging_type",
+      "units_per_package",
+      "package_length_cm",
+      "package_width_cm",
+      "package_height_cm",
+    ],
+  },
+];
 import {
   getProduct,
   listProductCategories,
@@ -160,12 +246,14 @@ export function ProductFormDialog({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [requestedRemoval, setRequestedRemoval] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
       setPendingFile(null);
       setPendingPreview(null);
       setRequestedRemoval(false);
+      setStepIndex(0);
       if (!isEdit) stableNewIdRef.current = null;
     }
     onOpenChange(next);
@@ -207,6 +295,26 @@ export function ProductFormDialog({
       form.reset(DEFAULT_VALUES);
     }
   }, [open, isEdit, existing, form]);
+
+  const isLastStep = stepIndex === STEPS.length - 1;
+  const currentStep = STEPS[stepIndex];
+
+  const goNext = async () => {
+    const ok = await form.trigger(currentStep.fields);
+    if (!ok) return;
+    setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
+  };
+  const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
+  const goTo = async (target: number) => {
+    if (target === stepIndex) return;
+    if (target < stepIndex) {
+      setStepIndex(target);
+      return;
+    }
+    const ok = await form.trigger(currentStep.fields);
+    if (!ok) return;
+    setStepIndex(target);
+  };
 
   useEffect(() => {
     if (!pendingPreview) return;
@@ -277,6 +385,15 @@ export function ProductFormDialog({
     saveMut.mutate(values);
   });
 
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (!isLastStep) {
+      e.preventDefault();
+      void goNext();
+      return;
+    }
+    void onSubmit(e);
+  };
+
   const watchPackaging = useWatch({
     control: form.control,
     name: "packaging_type",
@@ -332,418 +449,439 @@ export function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit product" : "New product"}</DialogTitle>
           <DialogDescription>
-            {isEdit
-              ? "Update this product's master data."
-              : "Add a product to the catalog. Prices and pack data here become defaults for future orders."}
+            Step {stepIndex + 1} of {STEPS.length} — {currentStep.title}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} className="space-y-6">
-          <Section
-            title="Basics"
-            description="Internal identifiers you use day-to-day."
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field
-                label="Product name *"
-                error={form.formState.errors.product_name?.message}
-                className="md:col-span-2"
-              >
-                <Input
-                  placeholder="e.g. Handwoven Wool Kilim 160x230"
-                  {...form.register("product_name")}
-                />
-              </Field>
+        <Stepper
+          steps={STEPS}
+          current={stepIndex}
+          onPick={(i) => void goTo(i)}
+        />
 
-              <Field label="Category">
-                <Controller
-                  name="category_id"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Combobox
-                      items={categoryItems}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Pick a category"
-                      searchPlaceholder="Search or create…"
-                      emptyMessage="No categories yet."
-                      createLabel={(q) => `Create "${q}"`}
-                      onCreate={(name) =>
-                        createCategoryMut.mutateAsync(name).then(() => undefined)
+        <form onSubmit={handleFormSubmit} className="space-y-6">
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-sm font-medium">{currentStep.title}</h3>
+              <p className="text-xs text-muted-foreground">
+                {currentStep.description}
+              </p>
+            </div>
+
+            {currentStep.id === "basics" ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field
+                  label="Product name *"
+                  error={form.formState.errors.product_name?.message}
+                  className="md:col-span-2"
+                >
+                  <Input
+                    placeholder="e.g. Handwoven Wool Kilim 160x230"
+                    {...form.register("product_name")}
+                  />
+                </Field>
+
+                <Field label="Category">
+                  <Controller
+                    name="category_id"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Combobox
+                        items={categoryItems}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Pick a category"
+                        searchPlaceholder="Search or create…"
+                        emptyMessage="No categories yet."
+                        createLabel={(q) => `Create "${q}"`}
+                        onCreate={(name) =>
+                          createCategoryMut
+                            .mutateAsync(name)
+                            .then(() => undefined)
+                        }
+                      />
+                    )}
+                  />
+                </Field>
+
+                <Field label="Supplier">
+                  <Controller
+                    name="default_supplier"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Combobox
+                        items={supplierItems}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Pick a supplier"
+                        searchPlaceholder="Search suppliers…"
+                        emptyMessage="No suppliers found. Add one from Contacts."
+                      />
+                    )}
+                  />
+                </Field>
+
+                <Field label="Unit">
+                  <Input
+                    placeholder="pcs, m², kg…"
+                    {...form.register("unit")}
+                  />
+                </Field>
+
+                <Field label="Barcode">
+                  <Input
+                    placeholder="EAN-13, UPC, etc."
+                    {...form.register("barcode_value")}
+                  />
+                </Field>
+
+                <div className="flex items-end md:col-span-2">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(watchIsActive)}
+                      onChange={(e) =>
+                        form.setValue("is_active", e.target.checked, {
+                          shouldDirty: true,
+                        })
                       }
+                      className="size-4 rounded border-input accent-primary"
                     />
-                  )}
-                />
-              </Field>
+                    <span>Active</span>
+                    <span className="text-xs text-muted-foreground">
+                      Inactive products stay in the catalog but are dimmed in
+                      the list.
+                    </span>
+                  </label>
+                </div>
+              </div>
+            ) : null}
 
-              <Field label="Supplier">
-                <Controller
-                  name="default_supplier"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Combobox
-                      items={supplierItems}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Pick a supplier"
-                      searchPlaceholder="Search suppliers…"
-                      emptyMessage="No suppliers found. Add one from Contacts."
+            {currentStep.id === "client" ? (
+              <div className="grid grid-cols-1 gap-4">
+                <Field label="Client product name">
+                  <Input
+                    placeholder="e.g. Anatolian Kilim — Blue"
+                    {...form.register("client_product_name")}
+                  />
+                </Field>
+                <Field label="Client description">
+                  <Textarea
+                    rows={4}
+                    placeholder="Short marketing description for proposals."
+                    {...form.register("client_description")}
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {currentStep.id === "photo" ? (
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                <div className="flex size-32 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
+                  {previewSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previewSrc}
+                      alt="Product preview"
+                      className="size-full object-cover"
                     />
+                  ) : (
+                    <ImageIcon className="size-8 text-muted-foreground" />
                   )}
-                />
-              </Field>
-
-              <Field label="Unit">
-                <Input placeholder="pcs, m², kg…" {...form.register("unit")} />
-              </Field>
-
-              <Field label="Barcode">
-                <Input
-                  placeholder="EAN-13, UPC, etc."
-                  {...form.register("barcode_value")}
-                />
-              </Field>
-
-              <div className="flex items-end md:col-span-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(watchIsActive)}
-                    onChange={(e) =>
-                      form.setValue("is_active", e.target.checked, {
-                        shouldDirty: true,
-                      })
-                    }
-                    className="size-4 rounded border-input accent-primary"
-                  />
-                  <span>Active</span>
-                  <span className="text-xs text-muted-foreground">
-                    Inactive products stay in the catalog but are dimmed in the list.
-                  </span>
-                </label>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm hover:bg-muted">
+                    <Upload className="size-4" />
+                    {previewSrc ? "Replace image" : "Upload image"}
+                    <input
+                      type="file"
+                      accept={ACCEPTED_PRODUCT_IMAGE_TYPES.join(",")}
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleFilePick(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {previewSrc ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-fit text-destructive hover:text-destructive"
+                      onClick={handleRemoveImage}
+                    >
+                      <Trash2 className="mr-2 size-4" />
+                      Remove image
+                    </Button>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Image uploads when you save the product.
+                  </p>
+                </div>
               </div>
-            </div>
-          </Section>
+            ) : null}
 
-          <Section
-            title="Client-facing"
-            description="How this product appears on proposals and client-visible documents."
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field
-                label="Client product name"
-                className="md:col-span-2"
-              >
-                <Input
-                  placeholder="e.g. Anatolian Kilim — Blue"
-                  {...form.register("client_product_name")}
-                />
-              </Field>
-              <Field label="Client description" className="md:col-span-2">
-                <Textarea
-                  rows={3}
-                  placeholder="Short marketing description for proposals."
-                  {...form.register("client_description")}
-                />
-              </Field>
-            </div>
-          </Section>
-
-          <Section title="Photo" description="JPG, PNG, or WebP up to 5MB.">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-              <div className="flex size-32 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
-                {previewSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={previewSrc}
-                    alt="Product preview"
-                    className="size-full object-cover"
+            {currentStep.id === "pricing" ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field
+                  label="Est. purchase price"
+                  error={form.formState.errors.est_purchase_price?.message}
+                >
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    {...form.register("est_purchase_price")}
                   />
-                ) : (
-                  <ImageIcon className="size-8 text-muted-foreground" />
-                )}
+                </Field>
+                <Field label="Purchase currency">
+                  <Controller
+                    name="est_currency"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ?? ""}
+                        onValueChange={(v) =>
+                          field.onChange(v === "" ? null : v)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BALANCE_CURRENCIES.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </Field>
+
+                <Field
+                  label="Default sales price"
+                  error={form.formState.errors.default_sales_price?.message}
+                >
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    {...form.register("default_sales_price")}
+                  />
+                </Field>
+                <Field label="Sales currency">
+                  <Controller
+                    name="sales_currency"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ?? ""}
+                        onValueChange={(v) =>
+                          field.onChange(v === "" ? null : v)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BALANCE_CURRENCIES.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </Field>
+
+                <Field label="KDV rate">
+                  <Controller
+                    name="kdv_rate"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value === null ? "" : String(field.value)}
+                        onValueChange={(v) =>
+                          field.onChange(v === "" ? null : Number(v))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select KDV rate" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {KDV_RATES.map((r) => (
+                            <SelectItem key={r} value={String(r)}>
+                              {r}%
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </Field>
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm hover:bg-muted">
-                  <Upload className="size-4" />
-                  {previewSrc ? "Replace image" : "Upload image"}
-                  <input
-                    type="file"
-                    accept={ACCEPTED_PRODUCT_IMAGE_TYPES.join(",")}
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleFilePick(f);
-                      e.target.value = "";
-                    }}
+            ) : null}
+
+            {currentStep.id === "logistics" ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field
+                  label="CBM per unit (m³)"
+                  error={form.formState.errors.cbm_per_unit?.message}
+                >
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    placeholder="0.0000"
+                    {...form.register("cbm_per_unit")}
                   />
-                </label>
-                {previewSrc ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="w-fit text-destructive hover:text-destructive"
-                    onClick={handleRemoveImage}
-                  >
-                    <Trash2 className="mr-2 size-4" />
-                    Remove image
-                  </Button>
+                </Field>
+                <Field
+                  label="Weight per unit (kg)"
+                  error={form.formState.errors.weight_kg_per_unit?.message}
+                >
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    {...form.register("weight_kg_per_unit")}
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {currentStep.id === "packaging" ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Packaging type" className="md:col-span-2">
+                  <Controller
+                    name="packaging_type"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ?? ""}
+                        onValueChange={(v) =>
+                          field.onChange(v === "" ? null : v)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select packaging" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PACKAGING_TYPES.map((p) => (
+                            <SelectItem key={p} value={p}>
+                              {PACKAGING_TYPE_LABELS[p]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </Field>
+
+                {watchPackaging ? (
+                  <>
+                    <Field
+                      label="Units per package"
+                      error={form.formState.errors.units_per_package?.message}
+                    >
+                      <Input
+                        type="number"
+                        step="1"
+                        min="0"
+                        placeholder="0"
+                        {...form.register("units_per_package")}
+                      />
+                    </Field>
+                    <Field
+                      label="Length (cm)"
+                      error={form.formState.errors.package_length_cm?.message}
+                    >
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="0"
+                        {...form.register("package_length_cm")}
+                      />
+                    </Field>
+                    <Field
+                      label="Width (cm)"
+                      error={form.formState.errors.package_width_cm?.message}
+                    >
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="0"
+                        {...form.register("package_width_cm")}
+                      />
+                    </Field>
+                    <Field
+                      label="Height (cm)"
+                      error={form.formState.errors.package_height_cm?.message}
+                    >
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="0"
+                        {...form.register("package_height_cm")}
+                      />
+                    </Field>
+                  </>
                 ) : null}
-                <p className="text-xs text-muted-foreground">
-                  Image uploads when you save the product.
-                </p>
               </div>
-            </div>
-          </Section>
+            ) : null}
+          </section>
 
-          <Section
-            title="Pricing"
-            description="Defaults only — orders take a snapshot at line-item time."
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field
-                label="Est. purchase price"
-                error={form.formState.errors.est_purchase_price?.message}
-              >
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  {...form.register("est_purchase_price")}
-                />
-              </Field>
-              <Field label="Purchase currency">
-                <Controller
-                  name="est_currency"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value ?? ""}
-                      onValueChange={(v) =>
-                        field.onChange(v === "" ? null : v)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select currency" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BALANCE_CURRENCIES.map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {c}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </Field>
-
-              <Field
-                label="Default sales price"
-                error={form.formState.errors.default_sales_price?.message}
-              >
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  {...form.register("default_sales_price")}
-                />
-              </Field>
-              <Field label="Sales currency">
-                <Controller
-                  name="sales_currency"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value ?? ""}
-                      onValueChange={(v) =>
-                        field.onChange(v === "" ? null : v)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select currency" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BALANCE_CURRENCIES.map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {c}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </Field>
-
-              <Field label="KDV rate">
-                <Controller
-                  name="kdv_rate"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value === null ? "" : String(field.value)}
-                      onValueChange={(v) =>
-                        field.onChange(v === "" ? null : Number(v))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select KDV rate" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {KDV_RATES.map((r) => (
-                          <SelectItem key={r} value={String(r)}>
-                            {r}%
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </Field>
-            </div>
-          </Section>
-
-          <Section
-            title="Logistics"
-            description="Used for container-fit calculations and shipping estimates."
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field
-                label="CBM per unit (m³)"
-                error={form.formState.errors.cbm_per_unit?.message}
-              >
-                <Input
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  placeholder="0.0000"
-                  {...form.register("cbm_per_unit")}
-                />
-              </Field>
-              <Field
-                label="Weight per unit (kg)"
-                error={form.formState.errors.weight_kg_per_unit?.message}
-              >
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  {...form.register("weight_kg_per_unit")}
-                />
-              </Field>
-            </div>
-          </Section>
-
-          <Section
-            title="Packaging"
-            description="Pick a packaging type to reveal dimension fields."
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field label="Packaging type">
-                <Controller
-                  name="packaging_type"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value ?? ""}
-                      onValueChange={(v) =>
-                        field.onChange(v === "" ? null : v)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select packaging" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PACKAGING_TYPES.map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {PACKAGING_TYPE_LABELS[p]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </Field>
-
-              {watchPackaging ? (
-                <>
-                  <Field
-                    label="Units per package"
-                    error={form.formState.errors.units_per_package?.message}
-                  >
-                    <Input
-                      type="number"
-                      step="1"
-                      min="0"
-                      placeholder="0"
-                      {...form.register("units_per_package")}
-                    />
-                  </Field>
-                  <Field
-                    label="Length (cm)"
-                    error={form.formState.errors.package_length_cm?.message}
-                  >
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      placeholder="0"
-                      {...form.register("package_length_cm")}
-                    />
-                  </Field>
-                  <Field
-                    label="Width (cm)"
-                    error={form.formState.errors.package_width_cm?.message}
-                  >
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      placeholder="0"
-                      {...form.register("package_width_cm")}
-                    />
-                  </Field>
-                  <Field
-                    label="Height (cm)"
-                    error={form.formState.errors.package_height_cm?.message}
-                  >
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      placeholder="0"
-                      {...form.register("package_height_cm")}
-                    />
-                  </Field>
-                </>
-              ) : null}
-            </div>
-          </Section>
-
-          <DialogFooter className="gap-2 pt-2">
+          <DialogFooter className="flex-row items-center justify-between gap-2 pt-2 sm:justify-between">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => handleOpenChange(false)}
-              disabled={submitting}
+              variant="ghost"
+              onClick={goBack}
+              disabled={stepIndex === 0 || submitting}
             >
-              Cancel
+              <ArrowLeft className="mr-2 size-4" />
+              Back
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting
-                ? "Saving…"
-                : isEdit
-                  ? "Save changes"
-                  : "Create product"}
-            </Button>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+
+              {isLastStep ? (
+                <Button type="submit" disabled={submitting}>
+                  {submitting
+                    ? "Saving…"
+                    : isEdit
+                      ? "Save changes"
+                      : "Create product"}
+                </Button>
+              ) : (
+                <Button type="button" onClick={() => void goNext()}>
+                  Next
+                  <ArrowRight className="ml-2 size-4" />
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -751,26 +889,59 @@ export function ProductFormDialog({
   );
 }
 
-function Section({
-  title,
-  description,
-  children,
+function Stepper({
+  steps,
+  current,
+  onPick,
 }: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
+  steps: { id: StepId; title: string }[];
+  current: number;
+  onPick: (i: number) => void;
 }) {
   return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Package className="size-4 text-muted-foreground" />
-        <h3 className="text-sm font-medium">{title}</h3>
-      </div>
-      {description ? (
-        <p className="text-xs text-muted-foreground">{description}</p>
-      ) : null}
-      {children}
-    </section>
+    <ol className="flex flex-wrap items-center gap-1 border-y py-3 text-xs">
+      {steps.map((s, i) => {
+        const state =
+          i < current ? "done" : i === current ? "active" : "pending";
+        return (
+          <li key={s.id} className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onPick(i)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors",
+                state === "active" &&
+                  "border-primary bg-primary text-primary-foreground",
+                state === "done" &&
+                  "border-border bg-muted text-foreground hover:bg-muted/80",
+                state === "pending" &&
+                  "border-border text-muted-foreground hover:bg-muted/50",
+              )}
+              aria-current={state === "active" ? "step" : undefined}
+            >
+              <span
+                className={cn(
+                  "flex size-4 items-center justify-center rounded-full text-[10px] font-medium",
+                  state === "active" && "bg-primary-foreground/20",
+                  state === "done" && "bg-foreground/10",
+                  state === "pending" && "bg-muted",
+                )}
+              >
+                {state === "done" ? (
+                  <Check className="size-3" />
+                ) : (
+                  <span>{i + 1}</span>
+                )}
+              </span>
+              <span>{s.title}</span>
+            </button>
+            {i < steps.length - 1 ? (
+              <span className="text-muted-foreground/40">·</span>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
