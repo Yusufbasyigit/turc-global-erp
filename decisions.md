@@ -4,6 +4,46 @@ Non-obvious decisions made during design. Each entry: what, why,
 alternatives considered, date. Newest at the top.
 
 
+## 2026-04-22 — Product form as a step wizard, not a single long dialog
+**What:** `ProductFormDialog` renders one section at a time (Basics → Client-facing → Photo → Pricing → Logistics → Packaging) with Back/Next controls and clickable progress pills. Next triggers Zod validation scoped to the current step's fields via `form.trigger(fields)`; the Save button only appears on the last step. Pressing Enter on an intermediate step calls `goNext()` instead of submitting.
+**Why:** The flat form had 15+ fields and forced vertical scrolling in the dialog. Breaking it into steps keeps each screen small and lets the user skip optional sections (Photo, Pricing, Logistics, Packaging) without seeing them.
+**Alternatives:** Tabs — rejected, tabs look like "pick one" rather than "fill in order" and hide validation errors on other tabs. A single scrolling form with a sticky section nav — rejected, still long; nav added visual weight without fixing the core problem.
+
+## 2026-04-22 — Client-generated product UUID before insert
+**What:** The form dialog generates a `crypto.randomUUID()` and holds it in a ref for the lifetime of the "new product" dialog. Image uploads use that ID as the storage folder; the insert then passes the same ID to `createProduct`.
+**Why:** Image upload needs a stable folder (`product-photos/{product_id}/…`) before the DB row exists. Without a pre-generated ID we'd have to insert a placeholder row, upload, then update — two round-trips plus an orphan row if the user cancels.
+**Alternatives:** Upload to a temp folder and move on save — rejected, Supabase Storage has no rename/move API, only copy+delete. Insert-then-upload-then-update — rejected, extra round-trips and orphan rows if the upload step fails.
+
+## 2026-04-22 — Product image column stores the storage path, not the public URL
+**What:** `products.product_image` stores a relative path like `uuid/filename.jpg`. The full URL is computed at render time via `supabase.storage.from('product-photos').getPublicUrl(path)` in `productImageUrl()`.
+**Why:** Bucket name stays in config (`PRODUCT_IMAGE_BUCKET`). If the bucket is renamed or moved behind a CDN later, no row-level rewrite is needed.
+**Alternatives:** Store full URL — rejected, couples every row to the current public-URL shape.
+
+## 2026-04-22 — Image upload deferred until form submit, not on file-pick
+**What:** Picking a file sets local state (`pendingFile`) and a `URL.createObjectURL()` preview. The actual upload to Supabase Storage happens inside the save mutation, after Zod validation passes. Replacing an image deletes the old file; removing an image deletes the file and sets `product_image = null`.
+**Why:** Upload-on-pick would orphan files in storage every time a user cancels the dialog or picks a file and abandons the save. Defer-and-batch guarantees storage state matches DB state.
+**Alternatives:** Upload immediately on pick with a "mark for deletion on cancel" cleanup pass — rejected, cleanup is racy (page close, network loss) and leaves dangling files.
+
+## 2026-04-22 — Built `Combobox` primitive on Popover + Command instead of extending `Select`
+**What:** New component at `src/components/ui/combobox.tsx` — a searchable dropdown with optional inline create, built from shadcn's Popover + Command (cmdk). Used for category and supplier pickers.
+**Why:** shadcn's `Select` is not searchable. Products has two fields (category, supplier) where the lists will grow beyond what's scannable without type-ahead, and category also needs inline "Create …" — neither fits Select.
+**Alternatives:** Use plain `Select` and accept slow scanning — rejected, worse UX as the lists grow. Use a third-party combobox (react-select, downshift) — rejected, the CLAUDE.md rule is "copy shadcn components, don't wrap libraries."
+
+## 2026-04-22 — KDV rate is a fixed dropdown (0 / 1 / 10 / 20), not free input
+**What:** `kdv_rate` form field is a `<Select>` with exactly four options: 0%, 1%, 10%, 20%. Zod refines the value against `KDV_RATES` in `src/lib/supabase/types.ts`.
+**Why:** These are the four official Turkish VAT rates. Free text would let typos (`18`, `19`, `21`) into the catalog, which then flow into every invoice generated from the product.
+**Alternatives:** Number input with validation — rejected, same typos still possible before validation fires. DB-level `CHECK` constraint — can be added later, but the UI guard is the real line of defence.
+
+## 2026-04-22 — Inline category creation inside the combobox, no category management UI
+**What:** Typing in the Category combobox shows a "Create '{query}'" row when no match exists. Selecting it fires `createProductCategory` and auto-selects the new category. There is no separate page or dialog for managing categories.
+**Why:** Categories are lightweight labels (name only). A dedicated management screen is dead weight for a flat list that's created as a side-effect of adding products. Inline create keeps the flow in one place.
+**Alternatives:** Separate `/products/categories` page with CRUD — rejected for MVP, not worth the UI. Editable categories (rename/delete) — deferred; if a rename is ever needed, Supabase dashboard handles it.
+
+## 2026-04-22 — Products list defaults to Active only, inactive rows shown dimmed not hidden
+**What:** The active filter on `/products` defaults to "Active only". Switching to "Include inactive" adds inactive rows to the same list, rendered at 60% opacity. There is no inactive-only view.
+**Why:** The common case is "show me things I actually sell." Inactive products are rare exceptions — surfacing them in the same list (dimmed) is faster than context-switching to a separate view.
+**Alternatives:** Three-way toggle (active / inactive / all) — rejected, adds a state that's almost never used. Hide inactive entirely — rejected, then users can't find old SKUs to reactivate without a schema dive.
+
 ## 2026-04-22 — Dev auth bypass environment switch
 **What:** `NEXT_PUBLIC_DISABLE_AUTH=true` in `.env.local` short-circuits the auth middleware and stamps `created_by`/`edited_by` as null. Lives in `src/lib/auth-mode.ts`. Must remain unset in production.
 **Why:** Speeds up local development — no need to sign in every hot reload. The null audit stamping makes dev-mode writes visually obvious in the DB.
