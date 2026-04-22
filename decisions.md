@@ -4,6 +4,30 @@ Non-obvious decisions made during design. Each entry: what, why,
 alternatives considered, date. Newest at the top.
 
 
+## 2026-04-22 — Dev auth bypass environment switch
+**What:** `NEXT_PUBLIC_DISABLE_AUTH=true` in `.env.local` short-circuits the auth middleware and stamps `created_by`/`edited_by` as null. Lives in `src/lib/auth-mode.ts`. Must remain unset in production.
+**Why:** Speeds up local development — no need to sign in every hot reload. The null audit stamping makes dev-mode writes visually obvious in the DB.
+**Alternatives:** Seed a test user and always log in — rejected, more friction day-to-day.
+
+## 2026-04-22 — Soft delete for contacts via `deleted_at`
+**What:** Deleting a contact sets `deleted_at = now()` rather than removing the row. Every list query filters `.is("deleted_at", null)`.
+**Why:** Deleted contacts may still be referenced by historical transactions/orders. Hard delete would orphan FK references.
+**Alternatives:** Hard delete with FK cascade — rejected, destroys audit trail.
+
+## 2026-04-22 — Balance currency constrained in code to TRY/EUR/USD/GBP
+**What:** The TypeScript type in `src/lib/supabase/types.ts` narrows balance_currency to these four values, even though the DB column likely accepts any text.
+**Why:** Matches actual business use. Prevents typos like "USD " or "Usd" creating silent bugs.
+**Alternatives:** Lock at the DB level with a CHECK constraint — better, but can be added later without schema pain.
+
+## 2026-04-22 — "No country" bucket in country-grouped view
+**What:** Contacts with null country_code group under a `__none` bucket labelled "No country" with a 🏳 emoji.
+**Why:** Grouping must not silently drop rows. Explicit bucket surfaces missing data so Yusuf notices and fixes it.
+
+## 2026-04-22 — Both floating + header "Add contact" buttons on desktop
+**What:** Desktop shows both a header "Add contact" button and a floating + button bottom-right. Mobile shows only the floating button.
+**Why:** Header button is discoverable for new users; floating button is fast for power use.
+**Alternatives:** Pick one — deferred. Revisit if it feels cluttered in practice.
+
 ## 2026-04-21 — Unified accounts: one table for every asset type
 **What:** The `accounts` table holds fiat bank balances, crypto, physical metals, and fund positions — rows tagged by `asset_type` (fiat | crypto | metal | fund). Old `currency` column renamed `asset_code` since it now holds BTC, Altın, KTJ, etc., not just currencies.
 **Why:** Treasury.md's "quantity is the source of truth" principle applies equally to grams of gold and units of KTJ as it does to dollars. Splitting into per-asset-class tables would duplicate schema for the same pattern.

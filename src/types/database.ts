@@ -545,6 +545,7 @@ export type Database = {
           created_time: string | null
           default_sales_price: number | null
           default_supplier: string | null
+          deleted_at: string | null
           edited_by: string | null
           edited_time: string | null
           est_currency: string | null
@@ -573,6 +574,7 @@ export type Database = {
           created_time?: string | null
           default_sales_price?: number | null
           default_supplier?: string | null
+          deleted_at?: string | null
           edited_by?: string | null
           edited_time?: string | null
           est_currency?: string | null
@@ -601,6 +603,7 @@ export type Database = {
           created_time?: string | null
           default_sales_price?: number | null
           default_supplier?: string | null
+          deleted_at?: string | null
           edited_by?: string | null
           edited_time?: string | null
           est_currency?: string | null
@@ -625,6 +628,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_default_supplier_fkey"
+            columns: ["default_supplier"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]

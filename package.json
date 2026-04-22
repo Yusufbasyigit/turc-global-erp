@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_REF --schema public > src/types/database.ts"
+    "db:types": "sh -c '. ./.env.local && OUT=$(mktemp) && supabase gen types typescript --project-id $SUPABASE_PROJECT_REF --schema public > $OUT && mv $OUT src/types/database.ts'"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
