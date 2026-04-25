@@ -56,6 +56,7 @@ import {
   PACKAGING_TYPES,
   type ProductWithRelations,
 } from "@/lib/supabase/types";
+import { derivedCbmPerUnit, packageCbm } from "@/lib/shipments/dimensions";
 
 import {
   productFormSchema,
@@ -398,6 +399,52 @@ export function ProductFormDialog({
     control: form.control,
     name: "packaging_type",
   });
+  const watchPkgL = useWatch({
+    control: form.control,
+    name: "package_length_cm",
+  });
+  const watchPkgW = useWatch({
+    control: form.control,
+    name: "package_width_cm",
+  });
+  const watchPkgH = useWatch({
+    control: form.control,
+    name: "package_height_cm",
+  });
+  const watchUnitsPerPkg = useWatch({
+    control: form.control,
+    name: "units_per_package",
+  });
+  const watchCbmPerUnit = useWatch({
+    control: form.control,
+    name: "cbm_per_unit",
+  });
+
+  const derivedFromPackage = useMemo(
+    () =>
+      derivedCbmPerUnit({
+        package_length_cm: watchPkgL,
+        package_width_cm: watchPkgW,
+        package_height_cm: watchPkgH,
+        units_per_package: watchUnitsPerPkg,
+      }),
+    [watchPkgL, watchPkgW, watchPkgH, watchUnitsPerPkg],
+  );
+  const packageVolume = useMemo(
+    () =>
+      packageCbm({
+        package_length_cm: watchPkgL,
+        package_width_cm: watchPkgW,
+        package_height_cm: watchPkgH,
+      }),
+    [watchPkgL, watchPkgW, watchPkgH],
+  );
+  const explicitCbm =
+    watchCbmPerUnit === null ||
+    watchCbmPerUnit === undefined ||
+    watchCbmPerUnit === ""
+      ? null
+      : Number(watchCbmPerUnit);
   const watchImagePath = useWatch({
     control: form.control,
     name: "product_image",
@@ -449,7 +496,7 @@ export function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit product" : "New product"}</DialogTitle>
           <DialogDescription>
@@ -738,12 +785,23 @@ export function ProductFormDialog({
                 <Field
                   label="CBM per unit (m³)"
                   error={form.formState.errors.cbm_per_unit?.message}
+                  hint={
+                    derivedFromPackage !== null
+                      ? `Derived from package dims: ${derivedFromPackage.toFixed(
+                          4,
+                        )} m³ — leave blank to use this value`
+                      : "Will fall back to (L × W × H ÷ 1,000,000 ÷ units per package) when blank"
+                  }
                 >
                   <Input
                     type="number"
                     step="0.0001"
                     min="0"
-                    placeholder="0.0000"
+                    placeholder={
+                      derivedFromPackage !== null
+                        ? derivedFromPackage.toFixed(4)
+                        : "0.0000"
+                    }
                     {...form.register("cbm_per_unit")}
                   />
                 </Field>
@@ -840,6 +898,37 @@ export function ProductFormDialog({
                         {...form.register("package_height_cm")}
                       />
                     </Field>
+
+                    {packageVolume !== null || derivedFromPackage !== null ? (
+                      <div className="md:col-span-2 rounded-md border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                        {packageVolume !== null ? (
+                          <div>
+                            Package volume:{" "}
+                            <span className="font-medium text-foreground tabular-nums">
+                              {packageVolume.toFixed(4)} m³
+                            </span>
+                          </div>
+                        ) : null}
+                        {derivedFromPackage !== null ? (
+                          <div>
+                            Derived CBM per unit:{" "}
+                            <span className="font-medium text-foreground tabular-nums">
+                              {derivedFromPackage.toFixed(4)} m³
+                            </span>
+                            {explicitCbm !== null && explicitCbm > 0 ? (
+                              <span className="ml-1 text-muted-foreground">
+                                (overridden by explicit CBM ={" "}
+                                {explicitCbm.toFixed(4)} m³)
+                              </span>
+                            ) : (
+                              <span className="ml-1 text-emerald-300">
+                                — used because CBM per unit is blank
+                              </span>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </>
                 ) : null}
               </div>
@@ -948,11 +1037,13 @@ function Stepper({
 function Field({
   label,
   error,
+  hint,
   children,
   className,
 }: {
   label: string;
   error?: string;
+  hint?: string;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -960,7 +1051,11 @@ function Field({
     <div className={cn("space-y-1.5", className)}>
       <Label className="text-xs text-muted-foreground">{label}</Label>
       {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : hint ? (
+        <p className="text-[11px] text-muted-foreground">{hint}</p>
+      ) : null}
     </div>
   );
 }

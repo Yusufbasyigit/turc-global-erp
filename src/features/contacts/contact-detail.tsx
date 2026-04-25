@@ -25,6 +25,8 @@ import { CountryFlag } from "./country-flag";
 import { ContactFormDialog } from "./contact-form-dialog";
 import { DeleteContactDialog } from "./delete-contact-dialog";
 import { AddNoteDialog } from "./add-note-dialog";
+import { ContactLedgerSection } from "./contact-ledger-section";
+import { SupplierLedgerSection } from "./supplier-ledger-section";
 
 export function ContactDetail({ contactId }: { contactId: string }) {
   const [editOpen, setEditOpen] = useState(false);
@@ -148,11 +150,6 @@ export function ContactDetail({ contactId }: { contactId: string }) {
             label="Balance currency"
             value={contact.balance_currency}
           />
-          <DetailField
-            label="Balance"
-            /* TODO: wire to transactions module for running client balance */
-            value={<span className="text-muted-foreground">—</span>}
-          />
           {contact.notes ? (
             <div className="md:col-span-2">
               <p className="text-xs text-muted-foreground">Notes</p>
@@ -217,6 +214,12 @@ export function ContactDetail({ contactId }: { contactId: string }) {
           )}
         </CardContent>
       </Card>
+
+      {contact.type === "supplier" ? (
+        <SupplierLedgerSection contactId={contactId} />
+      ) : contact.type === "customer" ? (
+        <ContactLedgerSection contactId={contactId} />
+      ) : null}
 
       <ContactFormDialog
         open={editOpen}

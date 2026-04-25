@@ -33,3 +33,32 @@ export const ACCEPTED_PRODUCT_IMAGE_TYPES = [
   "image/png",
   "image/webp",
 ] as const;
+
+export const TRANSACTION_ATTACHMENT_BUCKET = "transaction-attachments";
+export const MAX_TRANSACTION_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+export const ACCEPTED_TRANSACTION_ATTACHMENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+] as const;
+
+export const ORDER_ATTACHMENT_BUCKET = "order-attachments";
+export const MAX_ORDER_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+export const ACCEPTED_ORDER_ATTACHMENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+] as const;
+
+export const SHIPMENT_DOCUMENTS_BUCKET = "shipment-documents";
+export const MAX_SHIPMENT_DOCUMENT_BYTES = 5 * 1024 * 1024;
+export const ACCEPTED_SHIPMENT_DOCUMENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+] as const;
+
+export const SHIPMENT_INVOICE_BUCKET = "shipment-invoices";

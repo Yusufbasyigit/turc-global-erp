@@ -1,9 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
   Users,
   Package,
   ClipboardList,
@@ -11,6 +11,8 @@ import {
   ArrowLeftRight,
   Wallet,
   HandCoins,
+  Receipt,
+  TrendingUp,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -36,7 +38,6 @@ const groups: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { title: "Contacts", href: "/contacts", icon: Users },
       { title: "Products", href: "/products", icon: Package },
       { title: "Orders", href: "/orders", icon: ClipboardList },
@@ -46,9 +47,11 @@ const groups: NavGroup[] = [
   {
     label: "Finance",
     items: [
+      { title: "Treasury", href: "/treasury", icon: TrendingUp },
       { title: "Transactions", href: "/transactions", icon: ArrowLeftRight },
       { title: "Accounts", href: "/accounts", icon: Wallet },
       { title: "Partners", href: "/partners", icon: HandCoins },
+      { title: "Tax", href: "/tax", icon: Receipt },
     ],
   },
 ];
@@ -73,15 +76,14 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
               size="lg"
               className="hover:bg-transparent active:bg-transparent"
             >
-              <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-semibold">
-                TG
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">Turc Global</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  ERP
-                </span>
-              </div>
+              <Image
+                src="/tg-logo-white.png"
+                alt="Turc Global"
+                width={800}
+                height={168}
+                className="h-8 w-auto object-contain"
+                priority
+              />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

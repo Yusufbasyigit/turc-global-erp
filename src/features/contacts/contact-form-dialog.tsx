@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -71,7 +71,7 @@ function toFormValues(c: ContactWithCountry): ContactFormValues {
         c.balance_currency ?? "",
       )
         ? (c.balance_currency as ContactFormValues["balance_currency"])
-        : undefined,
+        : DEFAULT_VALUES.balance_currency,
     tax_id: c.tax_id ?? "",
     tax_office: c.tax_office ?? "",
     notes: c.notes ?? "",
@@ -108,12 +108,22 @@ export function ContactFormDialog({
     mode: "onBlur",
   });
 
+  // Reset once per dialog session: on open for new, or once `existing` first
+  // arrives for edit. A subsequent refetch of `existing` must not overwrite
+  // edits the user has already typed.
+  const hasResetRef = useRef(false);
   useEffect(() => {
-    if (!open) return;
-    if (isEdit && existing) {
-      form.reset(toFormValues(existing));
-    } else if (!isEdit) {
+    if (!open) {
+      hasResetRef.current = false;
+      return;
+    }
+    if (hasResetRef.current) return;
+    if (!isEdit) {
       form.reset(DEFAULT_VALUES);
+      hasResetRef.current = true;
+    } else if (existing) {
+      form.reset(toFormValues(existing));
+      hasResetRef.current = true;
     }
   }, [open, isEdit, existing, form]);
 
@@ -155,7 +165,7 @@ export function ContactFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit contact" : "New contact"}</DialogTitle>
           <DialogDescription>

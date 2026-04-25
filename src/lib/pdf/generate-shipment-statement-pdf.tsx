@@ -1,0 +1,311 @@
+import { createClient } from "@/lib/supabase/client";
+import { SHIPMENT_INVOICE_BUCKET } from "@/lib/constants";
+import {
+  setShipmentStatementPdfPath,
+} from "@/features/shipments/mutations";
+import {
+  computeShipmentTotal,
+  findShipmentBillingTransaction,
+  shipmentInvoiceSignedUrl,
+} from "@/features/shipments/queries";
+import { listTransactionsForContact } from "@/features/transactions/queries";
+import {
+  allocateFifo,
+  type LedgerEvent,
+  type PaymentAllocationDetail,
+} from "@/lib/ledger/fifo-allocation";
+import type {
+  StatementData,
+  StatementLine,
+  StatementLineStatus,
+  StatementPayment,
+} from "./shipment-statement-pdf-types";
+
+type OrderLineRow = {
+  line_number: number;
+  quantity: number;
+  unit_sales_price: number | null;
+  product_name_snapshot: string;
+  unit_snapshot: string | null;
+  orders: {
+    id: string;
+    status: string;
+    billing_shipment_id: string | null;
+    order_date: string | null;
+    created_time: string | null;
+  } | null;
+};
+
+function classifyLine(
+  parentStatus: string,
+  parentBillingShipmentId: string | null,
+  thisShipmentId: string,
+): StatementLineStatus {
+  if (parentStatus === "cancelled") return "cancelled";
+  if (parentBillingShipmentId !== thisShipmentId) return "rolled_over";
+  return "new";
+}
+
+async function fetchOtherShipmentNames(
+  ids: string[],
+): Promise<Map<string, string>> {
+  const supabase = createClient();
+  const out = new Map<string, string>();
+  if (ids.length === 0) return out;
+  const { data, error } = await supabase
+    .from("shipments")
+    .select("id, name")
+    .in("id", ids);
+  if (error) throw error;
+  for (const s of data ?? []) {
+    out.set(s.id, s.name);
+  }
+  return out;
+}
+
+export async function assembleShipmentStatementData(
+  shipmentId: string,
+): Promise<StatementData> {
+  const supabase = createClient();
+
+  const { data: shipmentRow, error: shipErr } = await supabase
+    .from("shipments")
+    .select(
+      "id, name, customer_id, invoice_currency, freight_cost, etd_date, eta_date, container_type, tracking_number, customer:contacts!shipments_customer_id_fkey(company_name, contact_person, address, city, countries(name_en))",
+    )
+    .eq("id", shipmentId)
+    .single();
+  if (shipErr) throw shipErr;
+  if (!shipmentRow) throw new Error("Shipment not found");
+
+  const s = shipmentRow as unknown as {
+    id: string;
+    name: string;
+    customer_id: string | null;
+    invoice_currency: string;
+    freight_cost: number | null;
+    etd_date: string | null;
+    eta_date: string | null;
+    container_type: string | null;
+    tracking_number: string | null;
+    customer: {
+      company_name: string;
+      contact_person: string | null;
+      address: string | null;
+      city: string | null;
+      countries: { name_en: string | null } | null;
+    } | null;
+  };
+
+  if (!s.customer_id) {
+    throw new Error("Shipment has no customer; cannot generate statement.");
+  }
+
+  const billingTxn = await findShipmentBillingTransaction(shipmentId);
+  if (!billingTxn) {
+    throw new Error("Shipment must be booked before generating a statement.");
+  }
+
+  const { data: linesRaw, error: linesErr } = await supabase
+    .from("order_details")
+    .select(
+      "line_number, quantity, unit_sales_price, product_name_snapshot, unit_snapshot, orders!inner(id, status, billing_shipment_id, order_date, created_time)",
+    )
+    .eq("orders.shipment_id", shipmentId);
+  if (linesErr) throw linesErr;
+
+  const lineRows = ((linesRaw ?? []) as unknown as OrderLineRow[])
+    .slice()
+    .sort((a, b) => {
+      const ad = a.orders?.order_date ?? "";
+      const bd = b.orders?.order_date ?? "";
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      const aid = a.orders?.id ?? "";
+      const bid = b.orders?.id ?? "";
+      if (aid !== bid) return aid < bid ? -1 : 1;
+      return a.line_number - b.line_number;
+    });
+
+  const otherShipmentIds = Array.from(
+    new Set(
+      lineRows
+        .map((r) => r.orders?.billing_shipment_id ?? null)
+        .filter(
+          (v): v is string => Boolean(v) && v !== shipmentId,
+        ),
+    ),
+  );
+  const otherShipmentNames = await fetchOtherShipmentNames(otherShipmentIds);
+
+  const currency = s.invoice_currency;
+
+  const lines: StatementLine[] = lineRows.map((r, i) => {
+    const status = classifyLine(
+      r.orders?.status ?? "",
+      r.orders?.billing_shipment_id ?? null,
+      shipmentId,
+    );
+    const qty = Number(r.quantity ?? 0);
+    const price =
+      r.unit_sales_price === null ? null : Number(r.unit_sales_price);
+    const lineTotal = price === null ? null : qty * price;
+    const rolledOverToName =
+      status === "rolled_over" && r.orders?.billing_shipment_id
+        ? otherShipmentNames.get(r.orders.billing_shipment_id)
+        : undefined;
+    return {
+      lineNumber: i + 1,
+      productName: r.product_name_snapshot,
+      quantity: qty,
+      unit: r.unit_snapshot,
+      unitPrice: price,
+      lineTotal,
+      status,
+      rolledOverToName,
+    };
+  });
+
+  const goodsSubtotal = lines.reduce((sum, l) => {
+    if (l.status !== "new" || l.lineTotal === null) return sum;
+    return sum + l.lineTotal;
+  }, 0);
+  const freightCost = Number(s.freight_cost ?? 0);
+
+  const liveTotal = await computeShipmentTotal(shipmentId);
+  const grandTotal = goodsSubtotal + freightCost;
+  const isBillingStale = Number(billingTxn.amount) !== Number(liveTotal);
+
+  const ledgerRows = await listTransactionsForContact(s.customer_id);
+  const events: LedgerEvent[] = ledgerRows.map((row) => ({
+    id: row.id,
+    date: row.transaction_date,
+    kind: row.kind as LedgerEvent["kind"],
+    amount: Number(row.amount),
+    currency: row.currency,
+    related_shipment_id: row.related_shipment_id,
+    fx_converted_amount:
+      row.fx_converted_amount === null ? null : Number(row.fx_converted_amount),
+    fx_target_currency: row.fx_target_currency,
+  }));
+
+  const fifo = allocateFifo(events, currency);
+
+  const paymentsForThis = fifo.payment_allocations.filter(
+    (a) => a.related_shipment_id === shipmentId,
+  );
+
+  const allocationsByPayment = new Map<string, PaymentAllocationDetail[]>();
+  for (const a of fifo.payment_allocations) {
+    const arr = allocationsByPayment.get(a.payment_event_id) ?? [];
+    arr.push(a);
+    allocationsByPayment.set(a.payment_event_id, arr);
+  }
+
+  const ledgerById = new Map(ledgerRows.map((r) => [r.id, r]));
+  const shipmentNamesByBillingTxnId = new Map<string, string>();
+  for (const row of ledgerRows) {
+    if (row.kind === "shipment_billing" && row.related_shipment) {
+      shipmentNamesByBillingTxnId.set(
+        row.id,
+        row.related_shipment.name ?? "(inconnu)",
+      );
+    }
+  }
+
+  const payments: StatementPayment[] = paymentsForThis
+    .slice()
+    .sort((a, b) => {
+      if (a.payment_date !== b.payment_date)
+        return a.payment_date < b.payment_date ? -1 : 1;
+      return a.payment_event_id < b.payment_event_id ? -1 : 1;
+    })
+    .map((alloc) => {
+      const txn = ledgerById.get(alloc.payment_event_id);
+      const description =
+        (txn?.description ?? "").trim() || "Paiement reçu";
+      const allOthers = (allocationsByPayment.get(alloc.payment_event_id) ?? [])
+        .filter((a) => a.related_shipment_id !== shipmentId);
+      let partialAnnotation: string | null = null;
+      if (allOthers.length > 0) {
+        const otherNames = Array.from(
+          new Set(
+            allOthers.map(
+              (a) =>
+                shipmentNamesByBillingTxnId.get(a.shipment_billing_id) ??
+                "autre envoi",
+            ),
+          ),
+        );
+        partialAnnotation = `(attribué partiellement à ${otherNames.join(", ")})`;
+      }
+      return {
+        date: alloc.payment_date,
+        description,
+        allocatedAmount: alloc.allocated_amount,
+        partialAnnotation,
+      };
+    });
+
+  const totalReceived = payments.reduce((s, p) => s + p.allocatedAmount, 0);
+  const balance = grandTotal - totalReceived;
+  const hasSkippedCurrencyEvents = fifo.skipped_events.length > 0;
+
+  return {
+    shipment: {
+      name: s.name,
+      trackingNumber: s.tracking_number,
+      containerType: s.container_type,
+      etdDate: s.etd_date,
+      etaDate: s.eta_date,
+      invoiceCurrency: currency,
+      freightCost,
+    },
+    customer: {
+      companyName: s.customer?.company_name ?? "—",
+      contactPerson: s.customer?.contact_person ?? null,
+      address: s.customer?.address ?? null,
+      city: s.customer?.city ?? null,
+      countryName: s.customer?.countries?.name_en ?? null,
+    },
+    lines,
+    goodsSubtotal,
+    grandTotal,
+    payments,
+    totalReceived,
+    balance,
+    isBillingStale,
+    hasSkippedCurrencyEvents,
+  };
+}
+
+export async function generateShipmentStatementPdf(
+  shipmentId: string,
+): Promise<{ path: string; signedUrl: string; shipmentName: string }> {
+  const supabase = createClient();
+  const data = await assembleShipmentStatementData(shipmentId);
+
+  const [{ pdf }, { ShipmentStatementDocument }] = await Promise.all([
+    import("@react-pdf/renderer"),
+    import("./shipment-statement-pdf"),
+  ]);
+
+  const blob = await pdf(<ShipmentStatementDocument data={data} />).toBlob();
+  const timestamp = Math.floor(Date.now() / 1000);
+  const path = `${shipmentId}/statement-${timestamp}.pdf`;
+
+  const { error: uploadErr } = await supabase.storage
+    .from(SHIPMENT_INVOICE_BUCKET)
+    .upload(path, blob, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: "application/pdf",
+    });
+  if (uploadErr) throw uploadErr;
+
+  await setShipmentStatementPdfPath({ shipment_id: shipmentId, path });
+
+  const signedUrl = await shipmentInvoiceSignedUrl(path, 3600);
+  if (!signedUrl) throw new Error("Failed to create signed URL.");
+
+  return { path, signedUrl, shipmentName: data.shipment.name };
+}

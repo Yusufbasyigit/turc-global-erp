@@ -210,6 +210,7 @@ export type Database = {
           is_active: boolean | null
           location_type: string
           name: string
+          requires_movement_type: boolean
         }
         Insert: {
           created_by?: string | null
@@ -220,6 +221,7 @@ export type Database = {
           is_active?: boolean | null
           location_type: string
           name: string
+          requires_movement_type?: boolean
         }
         Update: {
           created_by?: string | null
@@ -230,6 +232,7 @@ export type Database = {
           is_active?: boolean | null
           location_type?: string
           name?: string
+          requires_movement_type?: boolean
         }
         Relationships: []
       }
@@ -287,69 +290,87 @@ export type Database = {
       order_details: {
         Row: {
           actual_purchase_price: number | null
+          cbm_per_unit_snapshot: number | null
           created_by: string | null
-          created_time: string | null
-          detail_id: string
+          created_time: string
           edited_by: string | null
           edited_time: string | null
           est_purchase_unit_price: number | null
-          label_generated_pdf: string | null
-          line_cbm_total: number | null
-          line_total_amount: number | null
-          order_id: string | null
-          package_barcode: string | null
-          product_id: string | null
-          quantity: number | null
-          status: string | null
-          supplier_proposal_doc: string | null
-          target_supplier_id: string | null
+          id: string
+          line_number: number
+          notes: string | null
+          order_id: string
+          package_height_cm: number | null
+          package_length_cm: number | null
+          package_width_cm: number | null
+          packaging_type: string | null
+          product_description_snapshot: string | null
+          product_id: string
+          product_name_snapshot: string
+          product_photo_snapshot: string | null
+          quantity: number
+          supplier_id: string | null
           unit_sales_price: number | null
-          vat_amount: number | null
+          unit_snapshot: string
+          units_per_package: number | null
           vat_rate: number | null
+          weight_kg_per_unit_snapshot: number | null
         }
         Insert: {
           actual_purchase_price?: number | null
+          cbm_per_unit_snapshot?: number | null
           created_by?: string | null
-          created_time?: string | null
-          detail_id?: string
+          created_time?: string
           edited_by?: string | null
           edited_time?: string | null
           est_purchase_unit_price?: number | null
-          label_generated_pdf?: string | null
-          line_cbm_total?: number | null
-          line_total_amount?: number | null
-          order_id?: string | null
-          package_barcode?: string | null
-          product_id?: string | null
-          quantity?: number | null
-          status?: string | null
-          supplier_proposal_doc?: string | null
-          target_supplier_id?: string | null
+          id?: string
+          line_number: number
+          notes?: string | null
+          order_id: string
+          package_height_cm?: number | null
+          package_length_cm?: number | null
+          package_width_cm?: number | null
+          packaging_type?: string | null
+          product_description_snapshot?: string | null
+          product_id: string
+          product_name_snapshot: string
+          product_photo_snapshot?: string | null
+          quantity: number
+          supplier_id?: string | null
           unit_sales_price?: number | null
-          vat_amount?: number | null
+          unit_snapshot: string
+          units_per_package?: number | null
           vat_rate?: number | null
+          weight_kg_per_unit_snapshot?: number | null
         }
         Update: {
           actual_purchase_price?: number | null
+          cbm_per_unit_snapshot?: number | null
           created_by?: string | null
-          created_time?: string | null
-          detail_id?: string
+          created_time?: string
           edited_by?: string | null
           edited_time?: string | null
           est_purchase_unit_price?: number | null
-          label_generated_pdf?: string | null
-          line_cbm_total?: number | null
-          line_total_amount?: number | null
-          order_id?: string | null
-          package_barcode?: string | null
-          product_id?: string | null
-          quantity?: number | null
-          status?: string | null
-          supplier_proposal_doc?: string | null
-          target_supplier_id?: string | null
+          id?: string
+          line_number?: number
+          notes?: string | null
+          order_id?: string
+          package_height_cm?: number | null
+          package_length_cm?: number | null
+          package_width_cm?: number | null
+          packaging_type?: string | null
+          product_description_snapshot?: string | null
+          product_id?: string
+          product_name_snapshot?: string
+          product_photo_snapshot?: string | null
+          quantity?: number
+          supplier_id?: string | null
           unit_sales_price?: number | null
-          vat_amount?: number | null
+          unit_snapshot?: string
+          units_per_package?: number | null
           vat_rate?: number | null
+          weight_kg_per_unit_snapshot?: number | null
         }
         Relationships: [
           {
@@ -357,7 +378,7 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
-            referencedColumns: ["order_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "order_details_product_id_fkey"
@@ -366,116 +387,162 @@ export type Database = {
             referencedRelation: "products"
             referencedColumns: ["product_id"]
           },
-        ]
-      }
-      order_status_history: {
-        Row: {
-          changed_at: string | null
-          changed_by: string | null
-          id: string
-          new_status: string | null
-          old_status: string | null
-          order_id: string | null
-        }
-        Insert: {
-          changed_at?: string | null
-          changed_by?: string | null
-          id?: string
-          new_status?: string | null
-          old_status?: string | null
-          order_id?: string | null
-        }
-        Update: {
-          changed_at?: string | null
-          changed_by?: string | null
-          id?: string
-          new_status?: string | null
-          old_status?: string | null
-          order_id?: string | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "order_status_history_order_id_fkey"
-            columns: ["order_id"]
+            foreignKeyName: "order_details_supplier_id_fkey"
+            columns: ["supplier_id"]
             isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["order_id"]
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
           },
         ]
       }
       orders: {
         Row: {
+          billing_shipment_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
           created_by: string | null
-          created_time: string | null
-          customer_id: string | null
+          created_time: string
+          customer_id: string
           customer_po_file: string | null
+          delivery_timeline: string | null
           edited_by: string | null
           edited_time: string | null
-          exchange_rate_to_usd: number | null
-          generated_proposal_pdf: string | null
-          grand_total: number | null
+          id: string
+          incoterm: string | null
           notes: string | null
-          order_currency: string | null
-          order_date: string | null
-          order_id: string
-          proposal_template_type: string | null
+          offer_date: string | null
+          offer_number: string | null
+          offer_valid_until: string | null
+          order_currency: string
+          order_date: string
+          payment_terms: string | null
+          proforma_notes_delivery_location: string | null
+          proforma_notes_length_tolerance: string | null
+          proforma_notes_production_time: string | null
+          proforma_notes_remark: string | null
+          proforma_notes_total_weight: string | null
+          proforma_notes_validity: string | null
+          proposal_pdf: string | null
           shipment_id: string | null
-          status: string | null
-          target_delivery_date: string | null
-          total_sales_amount_net: number | null
-          total_vat_amount: number | null
+          status: string
         }
         Insert: {
+          billing_shipment_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
           created_by?: string | null
-          created_time?: string | null
-          customer_id?: string | null
+          created_time?: string
+          customer_id: string
           customer_po_file?: string | null
+          delivery_timeline?: string | null
           edited_by?: string | null
           edited_time?: string | null
-          exchange_rate_to_usd?: number | null
-          generated_proposal_pdf?: string | null
-          grand_total?: number | null
+          id?: string
+          incoterm?: string | null
           notes?: string | null
-          order_currency?: string | null
-          order_date?: string | null
-          order_id?: string
-          proposal_template_type?: string | null
+          offer_date?: string | null
+          offer_number?: string | null
+          offer_valid_until?: string | null
+          order_currency: string
+          order_date?: string
+          payment_terms?: string | null
+          proforma_notes_delivery_location?: string | null
+          proforma_notes_length_tolerance?: string | null
+          proforma_notes_production_time?: string | null
+          proforma_notes_remark?: string | null
+          proforma_notes_total_weight?: string | null
+          proforma_notes_validity?: string | null
+          proposal_pdf?: string | null
           shipment_id?: string | null
-          status?: string | null
-          target_delivery_date?: string | null
-          total_sales_amount_net?: number | null
-          total_vat_amount?: number | null
+          status?: string
         }
         Update: {
+          billing_shipment_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
           created_by?: string | null
-          created_time?: string | null
-          customer_id?: string | null
+          created_time?: string
+          customer_id?: string
           customer_po_file?: string | null
+          delivery_timeline?: string | null
           edited_by?: string | null
           edited_time?: string | null
-          exchange_rate_to_usd?: number | null
-          generated_proposal_pdf?: string | null
-          grand_total?: number | null
+          id?: string
+          incoterm?: string | null
           notes?: string | null
-          order_currency?: string | null
-          order_date?: string | null
-          order_id?: string
-          proposal_template_type?: string | null
+          offer_date?: string | null
+          offer_number?: string | null
+          offer_valid_until?: string | null
+          order_currency?: string
+          order_date?: string
+          payment_terms?: string | null
+          proforma_notes_delivery_location?: string | null
+          proforma_notes_length_tolerance?: string | null
+          proforma_notes_production_time?: string | null
+          proforma_notes_remark?: string | null
+          proforma_notes_total_weight?: string | null
+          proforma_notes_validity?: string | null
+          proposal_pdf?: string | null
           shipment_id?: string | null
-          status?: string | null
-          target_delivery_date?: string | null
-          total_sales_amount_net?: number | null
-          total_vat_amount?: number | null
+          status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_billing_shipment_id_fkey"
+            columns: ["billing_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_shipment_id_fkey"
             columns: ["shipment_id"]
             isOneToOne: false
             referencedRelation: "shipments"
-            referencedColumns: ["shipment_id"]
+            referencedColumns: ["id"]
           },
         ]
+      }
+      partners: {
+        Row: {
+          created_by: string | null
+          created_time: string
+          deleted_at: string | null
+          edited_by: string | null
+          edited_time: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_by?: string | null
+          created_time?: string
+          deleted_at?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_by?: string | null
+          created_time?: string
+          deleted_at?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
       }
       price_snapshots: {
         Row: {
@@ -550,6 +617,7 @@ export type Database = {
           edited_time: string | null
           est_currency: string | null
           est_purchase_price: number | null
+          hs_code: string | null
           is_active: boolean | null
           kdv_rate: number | null
           package_height_cm: number | null
@@ -579,6 +647,7 @@ export type Database = {
           edited_time?: string | null
           est_currency?: string | null
           est_purchase_price?: number | null
+          hs_code?: string | null
           is_active?: boolean | null
           kdv_rate?: number | null
           package_height_cm?: number | null
@@ -608,6 +677,7 @@ export type Database = {
           edited_time?: string | null
           est_currency?: string | null
           est_purchase_price?: number | null
+          hs_code?: string | null
           is_active?: boolean | null
           kdv_rate?: number | null
           package_height_cm?: number | null
@@ -639,12 +709,39 @@ export type Database = {
           },
         ]
       }
+      rate_refresh_runs: {
+        Row: {
+          error_message: string | null
+          fx_outcome: Json | null
+          id: string
+          price_outcome: Json | null
+          ran_at: string
+          triggered_by: string
+        }
+        Insert: {
+          error_message?: string | null
+          fx_outcome?: Json | null
+          id?: string
+          price_outcome?: Json | null
+          ran_at?: string
+          triggered_by: string
+        }
+        Update: {
+          error_message?: string | null
+          fx_outcome?: Json | null
+          id?: string
+          price_outcome?: Json | null
+          ran_at?: string
+          triggered_by?: string
+        }
+        Relationships: []
+      }
       shipments: {
         Row: {
-          capacity_percentage: number | null
           container_type: string | null
           created_by: string | null
-          created_time: string | null
+          created_time: string
+          customer_id: string
           documents_file: string | null
           edited_by: string | null
           edited_time: string | null
@@ -652,18 +749,21 @@ export type Database = {
           etd_date: string | null
           freight_cost: number | null
           freight_currency: string | null
-          shipment_id: string
-          status: string | null
-          total_cbm_loaded: number | null
+          generated_statement_pdf: string | null
+          id: string
+          invoice_currency: string
+          name: string
+          notes: string | null
+          status: string
           tracking_number: string | null
           transport_method: string | null
           vessel_name: string | null
         }
         Insert: {
-          capacity_percentage?: number | null
           container_type?: string | null
           created_by?: string | null
-          created_time?: string | null
+          created_time?: string
+          customer_id: string
           documents_file?: string | null
           edited_by?: string | null
           edited_time?: string | null
@@ -671,18 +771,21 @@ export type Database = {
           etd_date?: string | null
           freight_cost?: number | null
           freight_currency?: string | null
-          shipment_id?: string
-          status?: string | null
-          total_cbm_loaded?: number | null
+          generated_statement_pdf?: string | null
+          id?: string
+          invoice_currency: string
+          name: string
+          notes?: string | null
+          status?: string
           tracking_number?: string | null
           transport_method?: string | null
           vessel_name?: string | null
         }
         Update: {
-          capacity_percentage?: number | null
           container_type?: string | null
           created_by?: string | null
-          created_time?: string | null
+          created_time?: string
+          customer_id?: string
           documents_file?: string | null
           edited_by?: string | null
           edited_time?: string | null
@@ -690,98 +793,129 @@ export type Database = {
           etd_date?: string | null
           freight_cost?: number | null
           freight_currency?: string | null
-          shipment_id?: string
-          status?: string | null
-          total_cbm_loaded?: number | null
+          generated_statement_pdf?: string | null
+          id?: string
+          invoice_currency?: string
+          name?: string
+          notes?: string | null
+          status?: string
           tracking_number?: string | null
           transport_method?: string | null
           vessel_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shipments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
           amount: number
-          base_currency_amount: number | null
-          contact_currency_amount: number | null
-          currency: string | null
-          Date: string | null
+          attachment_path: string | null
+          contact_id: string | null
+          created_by: string | null
+          created_time: string
+          currency: string
           description: string | null
-          exchange_rate: number | null
-          expense_category: string | null
+          edited_by: string | null
+          edited_time: string | null
+          expense_type_id: string | null
           from_account_id: string | null
-          generated_receipt_pdf: string | null
+          fx_converted_amount: number | null
+          fx_rate_applied: number | null
+          fx_target_currency: string | null
           id: string
+          kdv_period: string | null
+          kind: string
           net_amount: number | null
-          paid_by_partner_id: string | null
-          payer_signature: string | null
-          receipt_image: string | null
-          reference_document_number: string | null
-          related_contact_id: string | null
+          partner_id: string | null
+          reference_number: string | null
           related_order_id: string | null
           related_payable_id: string | null
-          timestamp: string | null
+          related_shipment_id: string | null
           to_account_id: string | null
-          transaction_time: string | null
-          type_category: string
+          transaction_date: string
           vat_amount: number | null
           vat_rate: number | null
         }
         Insert: {
           amount: number
-          base_currency_amount?: number | null
-          contact_currency_amount?: number | null
-          currency?: string | null
-          Date?: string | null
+          attachment_path?: string | null
+          contact_id?: string | null
+          created_by?: string | null
+          created_time?: string
+          currency: string
           description?: string | null
-          exchange_rate?: number | null
-          expense_category?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          expense_type_id?: string | null
           from_account_id?: string | null
-          generated_receipt_pdf?: string | null
+          fx_converted_amount?: number | null
+          fx_rate_applied?: number | null
+          fx_target_currency?: string | null
           id?: string
+          kdv_period?: string | null
+          kind: string
           net_amount?: number | null
-          paid_by_partner_id?: string | null
-          payer_signature?: string | null
-          receipt_image?: string | null
-          reference_document_number?: string | null
-          related_contact_id?: string | null
+          partner_id?: string | null
+          reference_number?: string | null
           related_order_id?: string | null
           related_payable_id?: string | null
-          timestamp?: string | null
+          related_shipment_id?: string | null
           to_account_id?: string | null
-          transaction_time?: string | null
-          type_category: string
+          transaction_date: string
           vat_amount?: number | null
           vat_rate?: number | null
         }
         Update: {
           amount?: number
-          base_currency_amount?: number | null
-          contact_currency_amount?: number | null
-          currency?: string | null
-          Date?: string | null
+          attachment_path?: string | null
+          contact_id?: string | null
+          created_by?: string | null
+          created_time?: string
+          currency?: string
           description?: string | null
-          exchange_rate?: number | null
-          expense_category?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          expense_type_id?: string | null
           from_account_id?: string | null
-          generated_receipt_pdf?: string | null
+          fx_converted_amount?: number | null
+          fx_rate_applied?: number | null
+          fx_target_currency?: string | null
           id?: string
+          kdv_period?: string | null
+          kind?: string
           net_amount?: number | null
-          paid_by_partner_id?: string | null
-          payer_signature?: string | null
-          receipt_image?: string | null
-          reference_document_number?: string | null
-          related_contact_id?: string | null
+          partner_id?: string | null
+          reference_number?: string | null
           related_order_id?: string | null
           related_payable_id?: string | null
-          timestamp?: string | null
+          related_shipment_id?: string | null
           to_account_id?: string | null
-          transaction_time?: string | null
-          type_category?: string
+          transaction_date?: string
           vat_amount?: number | null
           vat_rate?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "transactions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_expense_type_id_fkey"
+            columns: ["expense_type_id"]
+            isOneToOne: false
+            referencedRelation: "expense_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "transactions_from_account_id_fkey"
             columns: ["from_account_id"]
@@ -790,17 +924,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "transactions_paid_by_partner_id_fkey"
-            columns: ["paid_by_partner_id"]
+            foreignKeyName: "transactions_partner_id_fkey"
+            columns: ["partner_id"]
             isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_related_contact_id_fkey"
-            columns: ["related_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
+            referencedRelation: "partners"
             referencedColumns: ["id"]
           },
           {
@@ -815,6 +942,69 @@ export type Database = {
             columns: ["to_account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      treasury_movements: {
+        Row: {
+          account_id: string
+          created_by: string | null
+          created_time: string
+          edited_by: string | null
+          edited_time: string | null
+          group_id: string | null
+          id: string
+          kind: string
+          movement_date: string
+          notes: string | null
+          ortak_movement_type: string | null
+          quantity: number
+          source_transaction_id: string | null
+        }
+        Insert: {
+          account_id: string
+          created_by?: string | null
+          created_time?: string
+          edited_by?: string | null
+          edited_time?: string | null
+          group_id?: string | null
+          id?: string
+          kind: string
+          movement_date: string
+          notes?: string | null
+          ortak_movement_type?: string | null
+          quantity: number
+          source_transaction_id?: string | null
+        }
+        Update: {
+          account_id?: string
+          created_by?: string | null
+          created_time?: string
+          edited_by?: string | null
+          edited_time?: string | null
+          group_id?: string | null
+          id?: string
+          kind?: string
+          movement_date?: string
+          notes?: string | null
+          ortak_movement_type?: string | null
+          quantity?: number
+          source_transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "treasury_movements_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "treasury_movements_source_transaction_id_fkey"
+            columns: ["source_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
         ]

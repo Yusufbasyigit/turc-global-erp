@@ -1,0 +1,6 @@
+project_id = "tpskndvtagnoklpfrusu"
+
+# pg_cron calls with `Authorization: Bearer <service_role_key>`, which is a
+# valid JWT — default verify_jwt = true is correct: it keeps the function
+# unreachable from anonymous callers.
+[functions.refresh-rates]

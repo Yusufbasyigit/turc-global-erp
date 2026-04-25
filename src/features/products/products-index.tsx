@@ -1,5 +1,9 @@
 "use client";
 
+// TODO: show "needs details" badge on products where hs_code is null
+//       AND (cbm_per_unit is null OR weight_kg_per_unit is null)
+//       AND category_id is null — i.e. a proforma-created minimum-viable product
+
 import { useMemo, useState } from "react";
 import {
   ChevronDown,

@@ -60,7 +60,7 @@ This is the rule that keeps the app fast. Everything else follows from it.
 
 | What                         | Source                       | Cadence                                           |
 |------------------------------|------------------------------|---------------------------------------------------|
-| FX rates (fiat → USD)        | TBD (TCMB + free API fallback) | **Manual only** — user clicks a refresh button. |
+| FX rates (fiat → USD)        | Frankfurter API | **Auto weekdays 09:00 Istanbul + manual button** |
 | Fund unit prices (KT funds)  | TEFAS                        | Auto, once per day                                |
 | Crypto prices                | CoinGecko (or similar)       | Auto, once per day                                |
 | Gold / silver spot           | TBD                          | Auto, once per day                                |
@@ -72,6 +72,11 @@ Every displayed USD value is stamped with the date of the FX rate used
 (e.g. *"USD view — rates from 21 Apr 2026"*) so stale data is visible, not hidden.
 When rates are stale (> 24h since last refresh, threshold tunable), **grey out
 the USD column** so the user sees at a glance that a refresh is due.
+
+As of 2026-04-25 there is a weekday-morning auto-refresh of all rate types
+via a server-side cron (Supabase Edge Function + pg_cron). The manual button
+remains for intraday refreshes and testing. Refresh runs are logged in
+`rate_refresh_runs`.
 ---
 
 ## FX has two jobs — don't confuse them
