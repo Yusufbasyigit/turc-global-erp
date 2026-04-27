@@ -8,12 +8,12 @@ High-level briefing for Claude Code is in `CLAUDE.md`. Architectural reasoning l
 
 - **Next.js 16** (App Router, React Compiler, Turbopack dev)
 - **TypeScript** (strict)
-- **Tailwind CSS v4** + **shadcn/ui** (Nova preset, slate neutrals, emerald accent)
+- **Tailwind CSS v4** + **shadcn/ui** (Editorial Ledger palette — warm-paper light, brick accent; tokens in `src/app/globals.css`)
 - **Supabase** via `@supabase/ssr` — magic-link auth, Postgres, Storage
 - **Sonner** for toasts, **Lucide** for icons
 - Deployed on **Vercel**
 
-Dark mode only (no toggle). UI is English.
+Light mode only (no toggle). UI is English.
 
 ## Run locally
 
@@ -45,7 +45,7 @@ src/
 │   ├── auth/
 │   │   ├── callback/route.ts   # Exchanges code → session
 │   │   └── signout/route.ts    # POST to sign out
-│   ├── layout.tsx          # Root layout, dark class, Toaster
+│   ├── layout.tsx          # Root layout, fonts, Toaster
 │   └── page.tsx            # Redirects to /dashboard
 ├── components/
 │   ├── ui/                 # shadcn components (copied, editable)
@@ -154,4 +154,4 @@ After that, magic links land on the right app in both dev and prod.
 ## Out of scope (for now)
 
 - Role-based access — single-tenant, owner-managed; auth gate is enough.
-- Light mode — dark-only is intentional, not a TODO.
+- Dark mode — the warm-paper Editorial Ledger palette is intentional, not a TODO.

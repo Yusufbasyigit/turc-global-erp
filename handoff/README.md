@@ -1,7 +1,7 @@
 # handoff/
 
-Historical reference material — **not active spec.**
+Historical visual reference — kept for context, not active spec.
 
-`_archive/` contains the visual reference used to design the dashboard's editorial styling (`editorial-ledger-reference.html` + the matching build spec) and a feature inventory snapshot from Apr 2026. The spec is for a different app ("Defter") and includes a light-mode palette that does **not** apply here — Turc Global ERP is dark-mode only.
+`_archive/` contains the original "Editorial Ledger" / Defter build spec and its sample HTML, which is the source the current visual language was built from. The palette, typography, and `.editorial-*` utility classes described there are now implemented in `src/app/globals.css` and the dashboard — read the code first; this folder is just the design memo it came from. Also archived: a Apr-2026 feature inventory snapshot.
 
 For the current source of truth, see `CLAUDE.md`, `decisions.md`, and `treasury.md` at the repo root.

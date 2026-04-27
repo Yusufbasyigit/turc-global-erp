@@ -37,10 +37,11 @@ Note: Next.js 16 renamed `middleware.ts` → `proxy.ts` (function `proxy()`). Sa
 - Turkish kept only for domain terms with no clean translation: Kasa, Ortak, Şirket, Vergi Dairesi, Yükleme Talimatı, KDV.
 - Generated PDFs in `src/lib/pdf/` are French (export shipping docs). Stays French.
 
-## Design
+## Design — Editorial Ledger ("Defter") palette
 
-- **Dark mode only.** No light-mode toggle, no theme switching.
-- Aesthetic: editorial / financial-broadsheet — Instrument Serif for headings, Inter for UI, IBM Plex Mono for stamps. Restrained palette, hairline rules over drop shadows. (See dashboard for the canonical look.)
+- **Light mode only.** Warm-paper background (`oklch(0.97 0.012 80)`), near-black ink (`oklch(0.20 0.02 60)`), muted brick accent (`oklch(0.48 0.16 32)`). No dark mode, no toggle.
+- Aesthetic: editorial / financial-broadsheet. Instrument Serif for headings, Inter for UI chrome, IBM Plex Mono for stamps and date marks. Restrained palette, hairline rules instead of drop shadows.
+- All design tokens live in `src/app/globals.css` under `:root` and bridge into shadcn via the `--background` / `--foreground` / etc. tokens. The `.editorial-*` utility classes (h1, h2, kicker, ledger, bignum, pullquote) carry the editorial typography — use those rather than re-rolling sizes.
 - Desktop-first; mobile is responsive enough for viewing and simple edits.
 
 ## Database & migrations
