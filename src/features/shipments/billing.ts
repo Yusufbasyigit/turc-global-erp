@@ -211,6 +211,15 @@ export async function writeShipmentAccruals(args: {
     .single();
   if (billingErr) throw billingErr;
 
+  // Track inserted accrual rows so we can roll the booking event back if the
+  // second or third insert fails — otherwise the booking month gets revenue
+  // without matching COGS/freight and the P&L silently overstates margin.
+  const insertedIds: string[] = [billingRow.id];
+  const rollback = async () => {
+    if (insertedIds.length === 0) return;
+    await supabase.from("transactions").delete().in("id", insertedIds).then();
+  };
+
   let cogsRow: Transaction | null = null;
   if (cogs > 0) {
     const cogsPayload = buildAccrualPayload({
@@ -230,8 +239,12 @@ export async function writeShipmentAccruals(args: {
       .insert(cogsPayload)
       .select()
       .single();
-    if (error) throw error;
+    if (error) {
+      await rollback().catch(() => {});
+      throw error;
+    }
     cogsRow = data;
+    insertedIds.push(data.id);
   }
 
   let freightRow: Transaction | null = null;
@@ -253,8 +266,12 @@ export async function writeShipmentAccruals(args: {
       .insert(freightPayload)
       .select()
       .single();
-    if (error) throw error;
+    if (error) {
+      await rollback().catch(() => {});
+      throw error;
+    }
     freightRow = data;
+    insertedIds.push(data.id);
   }
 
   return {

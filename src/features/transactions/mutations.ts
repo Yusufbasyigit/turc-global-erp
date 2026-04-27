@@ -48,6 +48,29 @@ async function custodyRequiresMovementType(
   return !!rel?.requires_movement_type;
 }
 
+// Guard against the most insidious cash-touching bug: writing a USD payment
+// against a TRY-denominated account. The treasury balance is a pure SUM(quantity)
+// across an account, so adding a non-matching-currency amount silently corrupts
+// the balance with no visible error until reconciliation.
+async function assertAccountCurrencyMatches(
+  accountId: string,
+  currency: string,
+): Promise<void> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("asset_code")
+    .eq("id", accountId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Account not found");
+  if (data.asset_code !== currency) {
+    throw new Error(
+      `Account currency (${data.asset_code ?? "?"}) does not match transaction currency (${currency}). Pick an account that holds ${currency}.`,
+    );
+  }
+}
+
 function ortakTypeFor(kind: Transaction["kind"]): OrtakMovementType | null {
   if (kind === "partner_loan_in") return "partner_loan_in";
   if (kind === "partner_loan_out") return "partner_loan_out";
@@ -89,6 +112,8 @@ export async function spawnMovementFromTransaction(
   const supabase = createClient();
   const fields = movementFieldsFromTransaction(txn);
   if (!fields) return null;
+
+  await assertAccountCurrencyMatches(fields.account_id, txn.currency);
 
   let ortak: OrtakMovementType | null = null;
   const derivedOrtak = ortakTypeFor(txn.kind as Transaction["kind"]);
@@ -168,7 +193,10 @@ export async function deleteAttachment(path: string): Promise<void> {
 }
 
 async function validateRelatedPayable(
-  payload: Pick<TransactionInsert, "related_payable_id" | "contact_id" | "kind">,
+  payload: Pick<
+    TransactionInsert,
+    "related_payable_id" | "contact_id" | "kind"
+  > & { currency?: string | null | undefined },
 ): Promise<void> {
   const rpid = payload.related_payable_id;
   if (!rpid) return;
@@ -178,7 +206,7 @@ async function validateRelatedPayable(
   const supabase = createClient();
   const { data, error } = await supabase
     .from("transactions")
-    .select("id, kind, contact_id")
+    .select("id, kind, contact_id, currency")
     .eq("id", rpid)
     .maybeSingle();
   if (error) throw error;
@@ -188,6 +216,11 @@ async function validateRelatedPayable(
   }
   if (data.contact_id !== payload.contact_id) {
     throw new Error("Linked invoice belongs to a different supplier");
+  }
+  if (payload.currency && data.currency !== payload.currency) {
+    throw new Error(
+      `Payment currency (${payload.currency}) does not match invoice currency (${data.currency}).`,
+    );
   }
 }
 
@@ -258,6 +291,7 @@ export async function updateTransaction(input: {
       related_payable_id: input.payload.related_payable_id,
       contact_id: input.payload.contact_id ?? null,
       kind: (input.payload.kind ?? "supplier_payment") as TransactionInsert["kind"],
+      currency: input.payload.currency ?? undefined,
     });
   }
 
@@ -301,6 +335,10 @@ export async function updateTransaction(input: {
     await deleteLinkedMovement(existingMovement.id);
     movement = null;
   } else if (existingMovement && nextFields) {
+    await assertAccountCurrencyMatches(
+      nextFields.account_id,
+      transaction.currency,
+    );
     const derivedOrtak = ortakTypeFor(transaction.kind as Transaction["kind"]);
     let ortak: OrtakMovementType | null = null;
     if (derivedOrtak) {

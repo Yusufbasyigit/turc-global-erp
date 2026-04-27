@@ -48,6 +48,14 @@ function isExpense(k: string): boolean {
   return (EXPENSE_KINDS as readonly string[]).includes(k);
 }
 
+// Real estate has no billing event — the cash receipt IS the revenue moment.
+// Export-side `client_payment`s are intentionally excluded to avoid
+// double-counting against `order_billing` / `shipment_billing`.
+function isRealEstateReceipt(t: TransactionWithRelations): boolean {
+  if (t.kind !== "client_payment") return false;
+  return t.real_estate_deal_id != null || t.revenue_source === "real_estate";
+}
+
 export type RowKind = "revenue" | "expense";
 
 export type PandLRow = {
@@ -291,6 +299,7 @@ export function useMonthlyPandL(period: string): MonthlyPandL {
       let rowKind: RowKind | null = null;
       if (isRevenue(t.kind)) rowKind = "revenue";
       else if (isExpense(t.kind)) rowKind = "expense";
+      else if (isRealEstateReceipt(t)) rowKind = "revenue";
       if (!rowKind) continue;
 
       const native = Number(t.amount);
@@ -444,7 +453,7 @@ export function useNetPandLTrend(periods: number = 12, anchor?: string): Trend {
       const p = istanbulYearMonth(t.transaction_date);
       const bucket = buckets.get(p);
       if (!bucket) continue;
-      const isRev = isRevenue(t.kind);
+      const isRev = isRevenue(t.kind) || isRealEstateReceipt(t);
       const isExp = isExpense(t.kind);
       if (!isRev && !isExp) continue;
 
