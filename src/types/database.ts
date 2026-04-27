@@ -15,9 +15,6 @@ export type Database = {
   public: {
     Tables: {
       accounts: {
-        // Patched inline for the 20260425130000_accounts_lifecycle migration
-        // (is_active + deleted_at). Will be regenerated cleanly by
-        // `npm run db:types` once Yusuf applies the SQL in the dashboard.
         Row: {
           account_name: string
           account_type: string | null
@@ -331,6 +328,33 @@ export type Database = {
           },
         ]
       }
+      monthly_fx_overrides: {
+        Row: {
+          currency_code: string
+          note: string | null
+          period: string
+          rate_to_usd: number
+          set_at: string
+          set_by: string | null
+        }
+        Insert: {
+          currency_code: string
+          note?: string | null
+          period: string
+          rate_to_usd: number
+          set_at?: string
+          set_by?: string | null
+        }
+        Update: {
+          currency_code?: string
+          note?: string | null
+          period?: string
+          rate_to_usd?: number
+          set_at?: string
+          set_by?: string | null
+        }
+        Relationships: []
+      }
       order_details: {
         Row: {
           actual_purchase_price: number | null
@@ -555,33 +579,6 @@ export type Database = {
           },
         ]
       }
-      monthly_fx_overrides: {
-        Row: {
-          currency_code: string
-          note: string | null
-          period: string
-          rate_to_usd: number
-          set_at: string
-          set_by: string | null
-        }
-        Insert: {
-          currency_code: string
-          note?: string | null
-          period: string
-          rate_to_usd: number
-          set_at?: string
-          set_by?: string | null
-        }
-        Update: {
-          currency_code?: string
-          note?: string | null
-          period?: string
-          rate_to_usd?: number
-          set_at?: string
-          set_by?: string | null
-        }
-        Relationships: []
-      }
       partners: {
         Row: {
           created_by: string | null
@@ -612,42 +609,6 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
-        }
-        Relationships: []
-      }
-      psd_events: {
-        Row: {
-          created_by: string | null
-          created_time: string
-          deleted_at: string | null
-          edited_by: string | null
-          edited_time: string | null
-          event_date: string
-          fiscal_period: string | null
-          id: string
-          note: string | null
-        }
-        Insert: {
-          created_by?: string | null
-          created_time?: string
-          deleted_at?: string | null
-          edited_by?: string | null
-          edited_time?: string | null
-          event_date: string
-          fiscal_period?: string | null
-          id?: string
-          note?: string | null
-        }
-        Update: {
-          created_by?: string | null
-          created_time?: string
-          deleted_at?: string | null
-          edited_by?: string | null
-          edited_time?: string | null
-          event_date?: string
-          fiscal_period?: string | null
-          id?: string
-          note?: string | null
         }
         Relationships: []
       }
@@ -816,6 +777,42 @@ export type Database = {
           },
         ]
       }
+      psd_events: {
+        Row: {
+          created_by: string | null
+          created_time: string
+          deleted_at: string | null
+          edited_by: string | null
+          edited_time: string | null
+          event_date: string
+          fiscal_period: string | null
+          id: string
+          note: string | null
+        }
+        Insert: {
+          created_by?: string | null
+          created_time?: string
+          deleted_at?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          event_date: string
+          fiscal_period?: string | null
+          id?: string
+          note?: string | null
+        }
+        Update: {
+          created_by?: string | null
+          created_time?: string
+          deleted_at?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          event_date?: string
+          fiscal_period?: string | null
+          id?: string
+          note?: string | null
+        }
+        Relationships: []
+      }
       rate_refresh_runs: {
         Row: {
           error_message: string | null
@@ -844,9 +841,6 @@ export type Database = {
         Relationships: []
       }
       real_estate_deals: {
-        // Patched inline for the 20260427170000_real_estate migration. Will
-        // be regenerated cleanly by `npm run db:types` once Yusuf applies
-        // the SQL in the dashboard.
         Row: {
           contact_id: string
           created_by: string | null
@@ -900,7 +894,6 @@ export type Database = {
         ]
       }
       real_estate_installments: {
-        // Patched inline for the 20260427170000_real_estate migration.
         Row: {
           created_time: string
           deal_id: string
@@ -931,6 +924,157 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "real_estate_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_payment_occurrences: {
+        Row: {
+          created_by: string | null
+          created_time: string
+          edited_by: string | null
+          edited_time: string | null
+          id: string
+          notes: string | null
+          paid_amount: number | null
+          paid_date: string | null
+          period_month: number
+          period_year: number
+          recurring_payment_id: string
+          status: string
+          transaction_id: string | null
+        }
+        Insert: {
+          created_by?: string | null
+          created_time?: string
+          edited_by?: string | null
+          edited_time?: string | null
+          id?: string
+          notes?: string | null
+          paid_amount?: number | null
+          paid_date?: string | null
+          period_month: number
+          period_year: number
+          recurring_payment_id: string
+          status: string
+          transaction_id?: string | null
+        }
+        Update: {
+          created_by?: string | null
+          created_time?: string
+          edited_by?: string | null
+          edited_time?: string | null
+          id?: string
+          notes?: string | null
+          paid_amount?: number | null
+          paid_date?: string | null
+          period_month?: number
+          period_year?: number
+          recurring_payment_id?: string
+          status?: string
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_payment_occurrences_recurring_payment_id_fkey"
+            columns: ["recurring_payment_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_payment_occurrences_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_payments: {
+        Row: {
+          account_id: string
+          contact_id: string | null
+          created_by: string | null
+          created_time: string
+          currency: string
+          day_of_month: number
+          deleted_at: string | null
+          description: string | null
+          edited_by: string | null
+          edited_time: string | null
+          effective_from: string
+          end_date: string | null
+          expected_amount: number
+          expense_type_id: string | null
+          id: string
+          kind: string
+          name: string
+          notes: string | null
+          status: string
+        }
+        Insert: {
+          account_id: string
+          contact_id?: string | null
+          created_by?: string | null
+          created_time?: string
+          currency: string
+          day_of_month: number
+          deleted_at?: string | null
+          description?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          effective_from: string
+          end_date?: string | null
+          expected_amount: number
+          expense_type_id?: string | null
+          id?: string
+          kind?: string
+          name: string
+          notes?: string | null
+          status?: string
+        }
+        Update: {
+          account_id?: string
+          contact_id?: string | null
+          created_by?: string | null
+          created_time?: string
+          currency?: string
+          day_of_month?: number
+          deleted_at?: string | null
+          description?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          effective_from?: string
+          end_date?: string | null
+          expected_amount?: number
+          expense_type_id?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          notes?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_payments_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_payments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_payments_expense_type_id_fkey"
+            columns: ["expense_type_id"]
+            isOneToOne: false
+            referencedRelation: "expense_types"
             referencedColumns: ["id"]
           },
         ]
@@ -1013,9 +1157,6 @@ export type Database = {
         ]
       }
       transactions: {
-        // Patched inline for the 20260427170000_real_estate migration
-        // (real_estate_deal_id + revenue_source). Will be regenerated cleanly
-        // by `npm run db:types` once Yusuf applies the SQL in the dashboard.
         Row: {
           amount: number
           attachment_path: string | null
@@ -1124,13 +1265,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "transactions_psd_event_id_fkey"
-            columns: ["psd_event_id"]
-            isOneToOne: false
-            referencedRelation: "psd_events"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "transactions_expense_type_id_fkey"
             columns: ["expense_type_id"]
             isOneToOne: false
@@ -1152,17 +1286,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "transactions_related_payable_id_fkey"
-            columns: ["related_payable_id"]
+            foreignKeyName: "transactions_psd_event_id_fkey"
+            columns: ["psd_event_id"]
             isOneToOne: false
-            referencedRelation: "transactions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_to_account_id_fkey"
-            columns: ["to_account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
+            referencedRelation: "psd_events"
             referencedColumns: ["id"]
           },
           {
@@ -1170,6 +1297,27 @@ export type Database = {
             columns: ["real_estate_deal_id"]
             isOneToOne: false
             referencedRelation: "real_estate_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_related_payable_id_fkey"
+            columns: ["related_payable_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_related_shipment_id_fkey"
+            columns: ["related_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_to_account_id_fkey"
+            columns: ["to_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
         ]

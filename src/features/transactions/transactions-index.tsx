@@ -63,6 +63,7 @@ import {
   TransactionFormDialog,
   type TransactionPrefill,
 } from "./transaction-form-dialog";
+import { RecurringPaymentsButton } from "@/features/recurring-payments/recurring-payments-panel";
 
 const PARTNER_BADGE_CLASSES =
   "border-transparent bg-violet-500/15 text-violet-800 hover:bg-violet-500/25";
@@ -283,9 +284,12 @@ export function TransactionsIndex() {
             Client payments, expenses, and other economic events.
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="mr-2 size-4" /> Record transaction
-        </Button>
+        <div className="flex items-center gap-2">
+          <RecurringPaymentsButton />
+          <Button onClick={openNew}>
+            <Plus className="mr-2 size-4" /> Record transaction
+          </Button>
+        </div>
       </header>
 
       <div className="flex flex-wrap items-center gap-2 border-y py-3">
