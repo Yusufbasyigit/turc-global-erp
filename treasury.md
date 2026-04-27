@@ -1,5 +1,7 @@
 # Treasury & Holdings Module
 
+> Original treasury spec from build start. `decisions.md` supersedes specifics where they diverge (e.g. the table is named `accounts`, not "Holdings"); the principles below remain authoritative.
+
 ## Purpose
 Track every holding the company touches — cash in multiple currencies, physical gold
 and silver, crypto, investment funds — across different custody locations, and show
@@ -151,9 +153,3 @@ Transfers create two linked rows (out of one holding, into another).
   Balances continue to compute over `treasury_movements` regardless of
   either flag — historical totals don't change when an account is retired.
 
-## Still to decide
-
-- Exact price-source APIs — chosen at build time.
-- Grey-out threshold — start with 24h, adjust from real use.
-- Whether to add a `transactions` table now (audit trail) or defer to the
-  accounting module phase.
