@@ -2,7 +2,7 @@
 
 Internal ERP for Turc Global — finance + logistics in one app. Single-tenant, private to the company.
 
-The high-level strategy and data-model reasoning live in `CLAUDE.md`, `treasury.md`, and `decisions.md` at the root of this repo. This README covers only how to run, maintain, and deploy the code.
+High-level briefing for Claude Code is in `CLAUDE.md`. Architectural reasoning lives in `treasury.md` (treasury principles) and `decisions.md` (append-only decisions log). This README covers only how to run, maintain, and deploy the code.
 
 ## Stack
 
@@ -145,9 +145,13 @@ After that, magic links land on the right app in both dev and prod.
 | `npm run lint` | ESLint |
 | `npm run db:types` | Regenerate `src/types/database.ts` from the live Supabase schema |
 
-## Things this skeleton intentionally does NOT include yet
+## Database migrations
 
-- Any real data fetches from Supabase tables (all module pages are placeholders).
-- TanStack Query, React Hook Form, Zod — added when the first real feature form lands.
-- Role-based access — MVP is single-user.
-- SQL migrations — Yusuf runs those directly in the Supabase SQL editor; this repo never pushes to the DB.
+- SQL lives in `supabase/migrations/` (source of truth). Add a new timestamped file for any schema change.
+- Apply with `supabase db push` from the CLI — the CLI prompts for confirmation each time.
+- Regenerate types after applying: `npm run db:types` and commit the updated `src/types/database.ts`.
+
+## Out of scope (for now)
+
+- Role-based access — single-tenant, owner-managed; auth gate is enough.
+- Light mode — dark-only is intentional, not a TODO.
