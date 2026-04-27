@@ -72,7 +72,7 @@ import {
   orderKeys,
 } from "./queries";
 
-type StepId = "customer" | "lines" | "notes" | "review";
+type StepId = "inquiry" | "lines" | "review";
 
 const STEPS: {
   id: StepId;
@@ -81,10 +81,10 @@ const STEPS: {
   fields: FieldPath<OrderFormValues>[];
 }[] = [
   {
-    id: "customer",
-    title: "Customer & basics",
-    description: "Pick the customer and set order metadata.",
-    fields: ["customer_id", "order_date", "order_currency"],
+    id: "inquiry",
+    title: "Inquiry",
+    description: "Pick the customer, set the date, and add any notes.",
+    fields: ["customer_id", "order_date"],
   },
   {
     id: "lines",
@@ -93,15 +93,9 @@ const STEPS: {
     fields: ["lines"],
   },
   {
-    id: "notes",
-    title: "Notes & PO",
-    description: "Internal notes and optional customer PO.",
-    fields: ["notes"],
-  },
-  {
     id: "review",
-    title: "Review",
-    description: "Confirm and create the order.",
+    title: "Review & submit",
+    description: "Attach a customer PO and confirm the order.",
     fields: [],
   },
 ];
@@ -501,7 +495,7 @@ export function OrderFormDialog({
               </p>
             </div>
 
-            {currentStep.id === "customer" ? (
+            {currentStep.id === "inquiry" ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field
                   label="Customer *"
@@ -531,34 +525,11 @@ export function OrderFormDialog({
                   <Input type="date" {...form.register("order_date")} />
                 </Field>
 
-                <Field
-                  label="Currency *"
-                  error={form.formState.errors.order_currency?.message}
-                >
-                  <Controller
-                    name="order_currency"
-                    control={form.control}
-                    render={({ field }) => (
-                      <Select
-                        value={field.value}
-                        onValueChange={(v) =>
-                          field.onChange(
-                            v as OrderFormValues["order_currency"],
-                          )
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Currency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BALANCE_CURRENCIES.map((c) => (
-                            <SelectItem key={c} value={c}>
-                              {c}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                <Field label="Notes" className="md:col-span-2">
+                  <Textarea
+                    rows={3}
+                    placeholder="Any initial notes about this inquiry…"
+                    {...form.register("notes")}
                   />
                 </Field>
               </div>
@@ -723,15 +694,46 @@ export function OrderFormDialog({
               </div>
             ) : null}
 
-            {currentStep.id === "notes" ? (
-              <div className="space-y-4">
-                <Field label="Notes">
-                  <Textarea
-                    rows={4}
-                    placeholder="Internal notes about this order."
-                    {...form.register("notes")}
-                  />
-                </Field>
+
+
+            {currentStep.id === "review" ? (
+              <div className="space-y-5">
+                <div className="space-y-3 rounded-md border p-4 text-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    <span className="text-muted-foreground">Customer</span>
+                    <span>
+                      {customers.find((c) => c.id === watchCustomerId)
+                        ?.company_name ?? "—"}
+                    </span>
+                    <span className="text-muted-foreground">Date</span>
+                    <span>{form.getValues("order_date")}</span>
+                    <span className="text-muted-foreground">Lines</span>
+                    <span>{watchLines?.length ?? 0}</span>
+                  </div>
+                  {form.getValues("notes")?.trim() ? (
+                    <div className="border-t pt-2 text-xs">
+                      <div className="text-muted-foreground">Notes</div>
+                      <p className="mt-0.5 whitespace-pre-wrap">{form.getValues("notes")}</p>
+                    </div>
+                  ) : null}
+                  {linesTotal.size > 0 ? (
+                    <div className="border-t pt-2 text-xs">
+                      <div className="text-muted-foreground">Totals</div>
+                      {Array.from(linesTotal.entries()).map(([cur, tot]) => (
+                        <div key={cur} className="font-medium">
+                          {tot.toLocaleString(undefined, {
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          {cur}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Order will be saved as <span className="font-medium">Inquiry</span>.
+                  </p>
+                </div>
+
                 <Field label="Customer PO (optional)">
                   <div className="flex flex-col gap-2">
                     {pendingFile ? (
@@ -763,40 +765,6 @@ export function OrderFormDialog({
                     </label>
                   </div>
                 </Field>
-              </div>
-            ) : null}
-
-            {currentStep.id === "review" ? (
-              <div className="space-y-3 rounded-md border p-4 text-sm">
-                <div className="grid grid-cols-2 gap-2">
-                  <span className="text-muted-foreground">Customer</span>
-                  <span>
-                    {customers.find((c) => c.id === watchCustomerId)
-                      ?.company_name ?? "—"}
-                  </span>
-                  <span className="text-muted-foreground">Date</span>
-                  <span>{form.getValues("order_date")}</span>
-                  <span className="text-muted-foreground">Currency</span>
-                  <span>{form.getValues("order_currency")}</span>
-                  <span className="text-muted-foreground">Lines</span>
-                  <span>{watchLines?.length ?? 0}</span>
-                </div>
-                {linesTotal.size > 0 ? (
-                  <div className="border-t pt-2 text-xs">
-                    <div className="text-muted-foreground">Totals</div>
-                    {Array.from(linesTotal.entries()).map(([cur, tot]) => (
-                      <div key={cur} className="font-medium">
-                        {tot.toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })}{" "}
-                        {cur}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                <p className="text-xs text-muted-foreground">
-                  Order will be saved as <span className="font-medium">Inquiry</span>.
-                </p>
               </div>
             ) : null}
           </section>
