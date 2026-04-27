@@ -89,6 +89,7 @@ export const ORTAK_TYPE_LABELS: Record<OrtakMovementType, string> = {
 
 export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   fiat: "Fiat",
+  credit_card: "Credit card",
   crypto: "Crypto",
   metal: "Metal",
   fund: "Fund",

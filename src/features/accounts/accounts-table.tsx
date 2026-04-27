@@ -153,6 +153,7 @@ function AccountRow({
 
   const custody = account.custody_locations;
   const isFiat = account.asset_type === "fiat";
+  const isCard = account.asset_type === "credit_card";
 
   return (
     <TableRow className={cn(dimClass)}>
@@ -189,7 +190,7 @@ function AccountRow({
         )}
       </TableCell>
       <TableCell className="text-sm">
-        {isFiat && (account.bank_name || account.iban) ? (
+        {(isFiat || isCard) && (account.bank_name || account.iban) ? (
           <div className="flex flex-col">
             {account.bank_name ? (
               <span>{account.bank_name}</span>
@@ -212,7 +213,16 @@ function AccountRow({
         )}
       </TableCell>
       <TableCell className="text-right font-mono text-sm">
-        {formatQuantity(balance)}
+        {isCard && balance < 0 ? (
+          <span title="Outstanding balance owed on this card">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              Owed
+            </span>{" "}
+            {formatQuantity(Math.abs(balance))}
+          </span>
+        ) : (
+          formatQuantity(balance)
+        )}
       </TableCell>
       <TableCell>
         <StatusPills isDeleted={isDeleted} isActive={isActive} />

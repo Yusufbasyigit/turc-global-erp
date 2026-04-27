@@ -58,6 +58,20 @@ export const accountFormSchema = z
       v.asset_code = v.asset_code.toUpperCase();
     }
 
+    // Credit cards live in a custody location flagged as "bank" (matches how
+    // a real card is held). We don't add a new custody type for cards.
+    if (
+      v.asset_type === "credit_card" &&
+      v._custody_location_type &&
+      v._custody_location_type !== "bank"
+    ) {
+      ctx.addIssue({
+        path: ["custody_location_id"],
+        code: z.ZodIssueCode.custom,
+        message: "Credit cards must use a bank custody location.",
+      });
+    }
+
     // Metal must be in physical custody.
     if (
       v.asset_type === "metal" &&

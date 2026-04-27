@@ -206,9 +206,15 @@ function AccountCard({
               <dd className="text-right">{account.subtype}</dd>
             </>
           ) : null}
-          <dt className="text-muted-foreground">Balance</dt>
+          <dt className="text-muted-foreground">
+            {account.asset_type === "credit_card" && balance < 0
+              ? "Owed"
+              : "Balance"}
+          </dt>
           <dd className="text-right font-mono">
-            {formatQuantity(balance)}
+            {account.asset_type === "credit_card" && balance < 0
+              ? formatQuantity(Math.abs(balance))
+              : formatQuantity(balance)}
           </dd>
         </dl>
       </CardContent>

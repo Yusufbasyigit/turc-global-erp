@@ -54,6 +54,7 @@ import { createAccount, updateAccount } from "./mutations";
 
 const ASSET_CODE_HELPER: Record<AssetType, string> = {
   fiat: "ISO currency code, e.g. USD, EUR, TRY",
+  credit_card: "ISO currency the card bills in, e.g. TRY, USD",
   crypto: "Ticker, e.g. BTC, USDT, AVAX",
   metal: "Asset name, e.g. Altın, Gümüş",
   fund: "TEFAS code, e.g. KTJ, KPU",
@@ -400,40 +401,60 @@ export function AccountFormDialog({
 
             {currentStep.id === "details" ? (
               <div className="space-y-4">
-                {assetType === "fiat" ? (
+                {assetType === "fiat" || assetType === "credit_card" ? (
                   <div className="space-y-4 rounded-md border bg-muted/30 p-3">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <Field
-                        label="Bank name"
+                        label={
+                          assetType === "credit_card"
+                            ? "Card issuer"
+                            : "Bank name"
+                        }
                         error={form.formState.errors.bank_name?.message}
                       >
                         <Input
-                          placeholder="e.g. İş Bankası"
+                          placeholder={
+                            assetType === "credit_card"
+                              ? "e.g. Garanti, AMEX"
+                              : "e.g. İş Bankası"
+                          }
                           {...form.register("bank_name")}
                         />
                       </Field>
                       <Field
-                        label="Account label"
+                        label={
+                          assetType === "credit_card"
+                            ? "Card label"
+                            : "Account label"
+                        }
                         error={form.formState.errors.account_type?.message}
-                        hint="e.g. checking, savings"
+                        hint={
+                          assetType === "credit_card"
+                            ? "e.g. business, last 4 digits"
+                            : "e.g. checking, savings"
+                        }
                       >
                         <Input
-                          placeholder="checking"
+                          placeholder={
+                            assetType === "credit_card" ? "1234" : "checking"
+                          }
                           {...form.register("account_type")}
                         />
                       </Field>
                     </div>
-                    <Field
-                      label="IBAN"
-                      error={form.formState.errors.iban?.message}
-                      hint="Optional. Spaces are stripped on save."
-                    >
-                      <Input
-                        placeholder="TR00 0000 0000 0000 0000 0000 00"
-                        className="font-mono"
-                        {...form.register("iban")}
-                      />
-                    </Field>
+                    {assetType === "fiat" ? (
+                      <Field
+                        label="IBAN"
+                        error={form.formState.errors.iban?.message}
+                        hint="Optional. Spaces are stripped on save."
+                      >
+                        <Input
+                          placeholder="TR00 0000 0000 0000 0000 0000 00"
+                          className="font-mono"
+                          {...form.register("iban")}
+                        />
+                      </Field>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -450,7 +471,9 @@ export function AccountFormDialog({
                   </Field>
                 ) : null}
 
-                {assetType !== "fiat" && assetType !== "fund" ? (
+                {assetType !== "fiat" &&
+                assetType !== "credit_card" &&
+                assetType !== "fund" ? (
                   <p className="text-xs text-muted-foreground">
                     No additional details required for{" "}
                     {ASSET_TYPE_LABELS[assetType ?? "fiat"]} accounts. Click

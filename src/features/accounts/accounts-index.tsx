@@ -42,8 +42,14 @@ import { AccountsCardList } from "./accounts-card-list";
 
 type Grouping = "asset_type" | "custody_location" | "flat";
 
-// Section order for asset_type grouping per spec: Fiat → Funds → Crypto → Metals.
-const ASSET_TYPE_ORDER: AssetType[] = ["fiat", "fund", "crypto", "metal"];
+// Section order for asset_type grouping per spec: Fiat → Credit cards → Funds → Crypto → Metals.
+const ASSET_TYPE_ORDER: AssetType[] = [
+  "fiat",
+  "credit_card",
+  "fund",
+  "crypto",
+  "metal",
+];
 
 export function AccountsIndex() {
   const isMobile = useIsMobile();

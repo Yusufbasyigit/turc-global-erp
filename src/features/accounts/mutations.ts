@@ -23,11 +23,14 @@ async function currentUserId(): Promise<string | null> {
 // tidy. The form already hides these inputs; this is a defensive backstop.
 function shapeForAssetType(values: AccountFormOutput) {
   const isFiat = values.asset_type === "fiat";
+  const isCard = values.asset_type === "credit_card";
   const isFund = values.asset_type === "fund";
+  // Credit cards reuse bank_name (issuer) + account_type (card label) but
+  // never carry an IBAN.
   return {
-    bank_name: isFiat ? (values.bank_name ?? null) : null,
+    bank_name: isFiat || isCard ? (values.bank_name ?? null) : null,
     iban: isFiat ? (values.iban ?? null) : null,
-    account_type: isFiat ? (values.account_type ?? null) : null,
+    account_type: isFiat || isCard ? (values.account_type ?? null) : null,
     subtype: isFund ? (values.subtype ?? null) : null,
   };
 }
