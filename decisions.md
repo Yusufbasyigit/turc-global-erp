@@ -4,6 +4,12 @@ Non-obvious decisions made during design. Each entry: what, why,
 alternatives considered, date. Newest at the top.
 
 
+## 2026-04-27 — Drop the transaction `adjustment` kind
+**What:** Removed `adjustment` from the transaction picker (was the 4th top-level button) and from the `transactions.kind` CHECK constraint via migration `20260427200000_drop_transaction_adjustment_kind.sql`. The unrelated `treasury_movements.kind = 'adjustment'` (signed quantity correction for cash/inventory miscounts) is unaffected. The FIFO allocator's `standalone_adjustments` bucket and the `"adjustment"` `LedgerEventKind` were deleted as dead code. No `transactions.kind = 'adjustment'` rows existed at the time of removal.
+**Why:** Adjustment was used very rarely in practice. Mainstream ERPs (QuickBooks, Xero, NetSuite) don't put adjustments on the cash-transaction picker — they're hidden under a journal-entry / accountant menu. The realistic corrections Yusuf would actually post (cash-count fixes, reconciliation diffs) are already expressible as a money-in or money-out with a free-text note. Keeping a 4th button for a once-a-year action added cognitive load on every transaction creation. The 2026-04-23 entry below describing the 5-char-description rule for `adjustment` is now historical.
+**Alternatives:** (a) keep the kind but hide it from the picker as a schema escape hatch — rejected, unused enum members invite drift and the FIFO code that handled them was already inert. (b) replace it with a true journal-entry feature — deferred, no current need; can be added later if a non-cash bookkeeping correction is ever required.
+
+
 ## 2026-04-27 — Canonical expense categories seeded via migration
 **What:** Five default rows added to `public.expense_types` via `20260427200000_seed_expense_types.sql`: Marketing & Sales, Operations & Logistics, Subscriptions & Software, Professional Services, Office & General/Transit. Idempotent insert (`WHERE NOT EXISTS` per name; the table has no unique constraint on `name`). The transaction form's combobox already reads from this table dynamically, so no code change.
 **Why:** The form lets users create types ad-hoc, which over time produces near-duplicates ("Marketing", "marketing", "Ads") and weakens P&L grouping. Seeding a small canonical set gives Yusuf an opinionated starting bucket-set without locking the schema — custom types can still be added inline.

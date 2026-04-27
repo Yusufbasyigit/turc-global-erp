@@ -107,7 +107,7 @@ export function ContactLedgerSection({ contactId }: { contactId: string }) {
     for (const r of rowsInOrder) {
       const s = effectiveSigned(r, displayCurrency);
       signed.set(r.id, s);
-      if (skippedIds.has(r.id) || r.kind === "adjustment" || s === null) {
+      if (skippedIds.has(r.id) || s === null) {
         balances.set(r.id, running);
         continue;
       }

@@ -75,25 +75,6 @@ function refund(id: string, date: string, amount: number, currency: string): Led
   };
 }
 
-function adjustment(
-  id: string,
-  date: string,
-  amount: number,
-  currency: string,
-  shipmentId?: string,
-): LedgerEvent {
-  return {
-    id,
-    date,
-    kind: "adjustment",
-    amount,
-    currency,
-    related_shipment_id: shipmentId ?? null,
-    fx_converted_amount: null,
-    fx_target_currency: null,
-  };
-}
-
 function section(title: string): void {
   console.log(`\n${title}`);
 }
@@ -222,22 +203,6 @@ section("8. Refund with no unallocated credit -> reopens paid billing");
   assertEq("outstanding re-opened", r.shipment_allocations[0].outstanding_amount, 200);
   assertEq("fully_paid flipped", r.shipment_allocations[0].is_fully_paid, false);
   assertEq("net_balance", r.net_balance, 200);
-}
-
-section("9. Adjustments surfaced but not FIFO-allocated");
-{
-  const r = allocateFifo(
-    [
-      billing("b1", "2026-01-01", 1000, "EUR", "s1"),
-      adjustment("a1", "2026-01-02", 50, "EUR"),
-      payment("p1", "2026-01-05", 1000, "EUR"),
-    ],
-    "EUR",
-  );
-  assertEq("standalone adjustment present", r.standalone_adjustments.length, 1);
-  assertEq("adjustment id", r.standalone_adjustments[0].id, "a1");
-  assertEq("paid not affected by adjustment", r.shipment_allocations[0].paid_amount, 1000);
-  assertEq("net_balance ignores adjustment", r.net_balance, 0);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

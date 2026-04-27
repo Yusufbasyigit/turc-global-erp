@@ -1,8 +1,7 @@
 export type LedgerEventKind =
   | "shipment_billing"
   | "client_payment"
-  | "client_refund"
-  | "adjustment";
+  | "client_refund";
 
 export type LedgerEvent = {
   id: string;
@@ -48,7 +47,6 @@ export type LedgerAllocationResult = {
   total_paid: number;
   net_balance: number;
   skipped_events: SkippedEvent[];
-  standalone_adjustments: LedgerEvent[];
 };
 
 export function effectiveAmount(
@@ -106,7 +104,6 @@ export function allocateFifo(
   });
 
   const skipped: SkippedEvent[] = [];
-  const adjustments: LedgerEvent[] = [];
   const billings: BillingSlot[] = [];
   const paymentAllocations: PaymentAllocationDetail[] = [];
   let unallocatedCredit = 0;
@@ -163,38 +160,6 @@ export function allocateFifo(
       continue;
     }
 
-    if (event.kind === "adjustment") {
-      // An adjustment with `related_shipment_id` set is a credit memo
-      // applied to that specific bill — model it like a payment that
-      // can only land on its named shipment. The DB CHECK constraint
-      // forbids negative amounts, so adjustments are always credits
-      // (they reduce outstanding). Standalone adjustments (no
-      // related_shipment_id) stay in their own bucket.
-      if (event.related_shipment_id) {
-        const slot = billings.find(
-          (s) => s.event.related_shipment_id === event.related_shipment_id,
-        );
-        if (slot) {
-          const capacity = slot.billed - slot.paid;
-          const take = Math.min(Math.max(0, capacity), amt);
-          slot.paid += take;
-          paymentAllocations.push({
-            payment_event_id: event.id,
-            payment_date: event.date,
-            shipment_billing_id: slot.event.id,
-            related_shipment_id: slot.event.related_shipment_id!,
-            allocated_amount: take,
-          });
-          const overflow = amt - take;
-          if (overflow > 0) unallocatedCredit += overflow;
-          continue;
-        }
-        // related_shipment_id points at a shipment we haven't seen
-        // billed yet — fall through to standalone.
-      }
-      adjustments.push(event);
-      continue;
-    }
   }
 
   const shipment_allocations: ShipmentAllocation[] = billings.map((slot) => {
@@ -226,6 +191,5 @@ export function allocateFifo(
     total_paid,
     net_balance,
     skipped_events: skipped,
-    standalone_adjustments: adjustments,
   };
 }

@@ -56,7 +56,6 @@ import {
   BALANCE_CURRENCIES,
   DISABLED_KINDS,
   KDV_RATES,
-  TRANSACTION_KINDS,
   type AccountWithCustody,
   type Contact,
   type TransactionInsert,
@@ -65,8 +64,12 @@ import {
 import { createClient } from "@/lib/supabase/client";
 
 import {
+  KIND_CATEGORIES,
   TRANSACTION_KIND_DESCRIPTIONS,
   TRANSACTION_KIND_LABELS,
+  locateKind,
+  type KindCategoryId,
+  type KindSubCategoryId,
 } from "./constants";
 import {
   transactionSchema,
@@ -200,6 +203,17 @@ export function TransactionFormDialog({
   const isEdit = Boolean(transaction);
   const [stepIndex, setStepIndex] = useState(0);
 
+  type KindView =
+    | { level: "categories" }
+    | { level: "sub"; category: KindCategoryId }
+    | {
+        level: "kinds";
+        category: KindCategoryId;
+        sub: KindSubCategoryId | null;
+      };
+
+  const [kindView, setKindView] = useState<KindView>({ level: "categories" });
+
   // Lazy-init UUID for new-transaction inserts so storage uploads can use it
   // as a path prefix before the row is inserted. Reset on close so each "new"
   // session gets a fresh ID.
@@ -228,6 +242,7 @@ export function TransactionFormDialog({
       setPendingPreview(null);
       setRequestedRemoval(false);
       setStepIndex(0);
+      setKindView({ level: "categories" });
       if (!isEdit) setStableNewId(crypto.randomUUID());
     }
     onOpenChange(next);
@@ -239,6 +254,12 @@ export function TransactionFormDialog({
       form.reset(toFormValues(transaction));
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStepIndex(0);
+      const path = locateKind(transaction.kind as TransactionKind);
+      setKindView({
+        level: "kinds",
+        category: path.category,
+        sub: path.sub,
+      });
       return;
     }
     const base = defaultValues();
@@ -258,6 +279,16 @@ export function TransactionFormDialog({
     }
     form.reset(base);
     setStepIndex(prefill?.kind ? 1 : 0);
+    if (prefill?.kind) {
+      const path = locateKind(prefill.kind);
+      setKindView({
+        level: "kinds",
+        category: path.category,
+        sub: path.sub,
+      });
+    } else {
+      setKindView({ level: "categories" });
+    }
   }, [open, isEdit, transaction, form, prefill]);
 
   useEffect(() => {
@@ -506,7 +537,6 @@ export function TransactionFormDialog({
         return ["partner_id", "from_account_id"];
       if (kind === "profit_distribution") return ["from_account_id"];
       if (kind === "tax_payment") return ["from_account_id"];
-      if (kind === "adjustment") return [];
       return [];
     }
     if (id === "details") {
@@ -517,7 +547,6 @@ export function TransactionFormDialog({
       ];
       if (kind === "client_payment") base.push("fx_rate_applied");
       if (kind === "supplier_invoice") base.push("reference_number");
-      if (kind === "adjustment") base.push("description");
       return base;
     }
     if (id === "vat") return ["vat_rate"];
@@ -529,7 +558,63 @@ export function TransactionFormDialog({
     if (!ok) return;
     setStepIndex((i) => Math.min(i + 1, visibleSteps.length - 1));
   };
-  const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
+  const goBack = () => {
+    if (currentStepId === "kind") {
+      if (kindView.level === "kinds") {
+        const cat = KIND_CATEGORIES.find((c) => c.id === kindView.category);
+        if (cat?.subCategories) {
+          setKindView({ level: "sub", category: kindView.category });
+        } else {
+          setKindView({ level: "categories" });
+        }
+        return;
+      }
+      if (kindView.level === "sub") {
+        setKindView({ level: "categories" });
+        return;
+      }
+      return;
+    }
+    setStepIndex((i) => Math.max(i - 1, 0));
+  };
+
+  const handlePickCategory = (id: KindCategoryId) => {
+    const cat = KIND_CATEGORIES.find((c) => c.id === id);
+    if (!cat) return;
+    if (cat.subCategories) {
+      setKindView({ level: "sub", category: id });
+      return;
+    }
+    if (cat.kinds && cat.kinds.length === 1) {
+      const only = cat.kinds[0];
+      if (!(DISABLED_KINDS as readonly string[]).includes(only)) {
+        form.setValue(
+          "kind",
+          only as Exclude<TransactionKind, (typeof DISABLED_KINDS)[number]>,
+          { shouldValidate: false },
+        );
+        setKindView({ level: "kinds", category: id, sub: null });
+        setStepIndex((i) => Math.min(i + 1, visibleSteps.length - 1));
+        return;
+      }
+    }
+    setKindView({ level: "kinds", category: id, sub: null });
+  };
+
+  const handlePickSubCategory = (id: KindSubCategoryId) => {
+    if (kindView.level !== "sub") return;
+    setKindView({ level: "kinds", category: kindView.category, sub: id });
+  };
+
+  const handlePickKind = (k: TransactionKind) => {
+    if ((DISABLED_KINDS as readonly string[]).includes(k)) return;
+    form.setValue(
+      "kind",
+      k as Exclude<TransactionKind, (typeof DISABLED_KINDS)[number]>,
+      { shouldValidate: false },
+    );
+    setStepIndex((i) => Math.min(i + 1, visibleSteps.length - 1));
+  };
 
   const saveMut = useMutation({
     mutationFn: async (values: TransactionOutput) => {
@@ -621,54 +706,143 @@ export function TransactionFormDialog({
         <form onSubmit={handleFormSubmit} className="space-y-5">
           {currentStepId === "kind" ? (
             <TooltipProvider delayDuration={150}>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {TRANSACTION_KINDS.map((k) => {
-                  const disabled = (DISABLED_KINDS as readonly string[]).includes(k);
-                  const enabled = !disabled;
-                  const selected = kind === k;
-                  const card = (
-                    <button
-                      type="button"
-                      key={k}
-                      disabled={disabled}
-                      onClick={() => {
-                        if (!enabled) return;
-                        form.setValue(
-                          "kind",
-                          k as Exclude<TransactionKind, (typeof DISABLED_KINDS)[number]>,
-                          { shouldValidate: false },
-                        );
-                      }}
-                      className={cn(
-                        "rounded-lg border p-3 text-left transition-colors",
-                        disabled && "cursor-not-allowed opacity-50",
-                        enabled && selected && "border-primary bg-primary/5",
-                        enabled && !selected && "border-border hover:bg-muted/50",
-                      )}
-                    >
-                      <div className="text-sm font-medium">
-                        {TRANSACTION_KIND_LABELS[k]}
-                      </div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">
-                        {TRANSACTION_KIND_DESCRIPTIONS[k]}
-                      </div>
-                    </button>
-                  );
-                  if (disabled) {
+              {kindView.level === "categories" ? (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {KIND_CATEGORIES.map((cat) => {
+                    const allKinds = cat.kinds
+                      ? cat.kinds
+                      : (cat.subCategories?.flatMap((s) => s.kinds) ?? []);
+                    const enabledCount = allKinds.filter(
+                      (k) =>
+                        !(DISABLED_KINDS as readonly string[]).includes(k),
+                    ).length;
                     return (
-                      <Tooltip key={k}>
-                        <TooltipTrigger asChild>
-                          <div>{card}</div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          Coming in a later wave.
-                        </TooltipContent>
-                      </Tooltip>
+                      <button
+                        type="button"
+                        key={cat.id}
+                        onClick={() => handlePickCategory(cat.id)}
+                        className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50"
+                      >
+                        <div className="text-sm font-medium">{cat.label}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {cat.description}
+                        </div>
+                        <div className="mt-1 text-[11px] text-muted-foreground">
+                          {enabledCount} option{enabledCount === 1 ? "" : "s"}
+                        </div>
+                      </button>
                     );
-                  }
-                  return card;
-                })}
-              </div>
+                  })}
+                </div>
+              ) : null}
+
+              {kindView.level === "sub" ? (
+                <div className="space-y-3">
+                  <div className="text-xs text-muted-foreground">
+                    {KIND_CATEGORIES.find((c) => c.id === kindView.category)
+                      ?.label}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {KIND_CATEGORIES.find(
+                      (c) => c.id === kindView.category,
+                    )?.subCategories?.map((sub) => {
+                      const enabledCount = sub.kinds.filter(
+                        (k) =>
+                          !(DISABLED_KINDS as readonly string[]).includes(k),
+                      ).length;
+                      return (
+                        <button
+                          type="button"
+                          key={sub.id}
+                          onClick={() => handlePickSubCategory(sub.id)}
+                          className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50"
+                        >
+                          <div className="text-sm font-medium">
+                            {sub.label}
+                          </div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {sub.description}
+                          </div>
+                          <div className="mt-1 text-[11px] text-muted-foreground">
+                            {enabledCount} option
+                            {enabledCount === 1 ? "" : "s"}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {kindView.level === "kinds"
+                ? (() => {
+                    const cat = KIND_CATEGORIES.find(
+                      (c) => c.id === kindView.category,
+                    );
+                    const sub = cat?.subCategories?.find(
+                      (s) => s.id === kindView.sub,
+                    );
+                    const kinds = sub ? sub.kinds : (cat?.kinds ?? []);
+                    const breadcrumb = sub
+                      ? `${cat?.label} › ${sub.label}`
+                      : (cat?.label ?? "");
+                    return (
+                      <div className="space-y-3">
+                        <div className="text-xs text-muted-foreground">
+                          {breadcrumb}
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          {kinds.map((k) => {
+                            const disabled = (
+                              DISABLED_KINDS as readonly string[]
+                            ).includes(k);
+                            const enabled = !disabled;
+                            const selected = kind === k;
+                            const card = (
+                              <button
+                                type="button"
+                                key={k}
+                                disabled={disabled}
+                                onClick={() => handlePickKind(k)}
+                                className={cn(
+                                  "rounded-lg border p-3 text-left transition-colors",
+                                  disabled &&
+                                    "cursor-not-allowed opacity-50",
+                                  enabled &&
+                                    selected &&
+                                    "border-primary bg-primary/5",
+                                  enabled &&
+                                    !selected &&
+                                    "border-border hover:bg-muted/50",
+                                )}
+                              >
+                                <div className="text-sm font-medium">
+                                  {TRANSACTION_KIND_LABELS[k]}
+                                </div>
+                                <div className="mt-0.5 text-xs text-muted-foreground">
+                                  {TRANSACTION_KIND_DESCRIPTIONS[k]}
+                                </div>
+                              </button>
+                            );
+                            if (disabled) {
+                              return (
+                                <Tooltip key={k}>
+                                  <TooltipTrigger asChild>
+                                    <div>{card}</div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Coming in a later wave.
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            }
+                            return card;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()
+                : null}
             </TooltipProvider>
           ) : null}
 
@@ -1125,63 +1299,6 @@ export function TransactionFormDialog({
                 </>
               ) : null}
 
-              {kind === "adjustment" ? (
-                <>
-                  <Field label="Contact (optional)">
-                    <Controller
-                      name="contact_id"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Combobox
-                          items={allContactItems}
-                          value={field.value || null}
-                          onChange={(v) => {
-                            field.onChange(v ?? "");
-                            if (v) {
-                              form.setValue("partner_id", "", {
-                                shouldValidate: false,
-                              });
-                            }
-                          }}
-                          placeholder="Pick a contact"
-                          searchPlaceholder="Search…"
-                          emptyMessage="No contacts."
-                          clearable
-                          disabled={Boolean(partnerId)}
-                        />
-                      )}
-                    />
-                  </Field>
-                  <Field
-                    label="Partner (optional)"
-                    error={errMsg("partner_id")}
-                  >
-                    <Controller
-                      name="partner_id"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Combobox
-                          items={partnerItems}
-                          value={field.value || null}
-                          onChange={(v) => {
-                            field.onChange(v ?? "");
-                            if (v) {
-                              form.setValue("contact_id", "", {
-                                shouldValidate: false,
-                              });
-                            }
-                          }}
-                          placeholder="Pick a partner"
-                          searchPlaceholder="Search…"
-                          emptyMessage="No partners."
-                          clearable
-                          disabled={Boolean(contactId)}
-                        />
-                      )}
-                    />
-                  </Field>
-                </>
-              ) : null}
             </div>
           ) : null}
 
@@ -1343,7 +1460,10 @@ export function TransactionFormDialog({
               type="button"
               variant="ghost"
               onClick={goBack}
-              disabled={stepIndex === 0 || saveMut.isPending}
+              disabled={
+                (stepIndex === 0 && kindView.level === "categories") ||
+                saveMut.isPending
+              }
             >
               <ArrowLeft className="mr-2 size-4" />
               Back
@@ -1365,7 +1485,7 @@ export function TransactionFormDialog({
                       ? "Save changes"
                       : "Record transaction"}
                 </Button>
-              ) : (
+              ) : currentStepId === "kind" ? null : (
                 <Button type="button" onClick={() => void goNext()}>
                   Next
                   <ArrowRight className="ml-2 size-4" />
@@ -1549,14 +1669,6 @@ function buildInsertPayload(
         contact_id: null,
         partner_id: null,
         kdv_period: v.kdv_period && v.kdv_period.trim() ? v.kdv_period.trim() : null,
-      };
-    case "adjustment":
-      return {
-        ...common,
-        contact_id: v.contact_id ? v.contact_id : null,
-        partner_id: v.partner_id ? v.partner_id : null,
-        from_account_id: null,
-        to_account_id: null,
       };
     default:
       return common;

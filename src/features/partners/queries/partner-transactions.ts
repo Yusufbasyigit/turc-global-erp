@@ -19,7 +19,6 @@ const PARTNER_LEDGER_KINDS = [
   "partner_loan_out",
   "profit_distribution",
   "expense",
-  "adjustment",
 ] as const;
 
 const PARTNER_TRANSACTION_SELECT = `

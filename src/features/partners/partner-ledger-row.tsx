@@ -17,9 +17,10 @@ const KIND_BADGE_CLASSES: Record<string, string> = {
     "border-transparent bg-violet-500/15 text-violet-800 hover:bg-violet-500/25",
   expense:
     "border-transparent bg-amber-500/20 text-amber-800 hover:bg-amber-500/30",
-  adjustment:
-    "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25",
 };
+
+const NEUTRAL_BADGE_CLASS =
+  "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25";
 
 function formatDate(d: string): string {
   try {
@@ -74,7 +75,7 @@ function PartnerLedgerRowImpl({
   const dir = directionFor(row);
   const amt = Number(row.amount);
   const kindLabel = PARTNER_LEDGER_KIND_LABELS[row.kind] ?? row.kind;
-  const kindClass = KIND_BADGE_CLASSES[row.kind] ?? KIND_BADGE_CLASSES.adjustment;
+  const kindClass = KIND_BADGE_CLASSES[row.kind] ?? NEUTRAL_BADGE_CLASS;
 
   let amountTone = "text-foreground";
   if (dir === "in") amountTone = "text-emerald-700";

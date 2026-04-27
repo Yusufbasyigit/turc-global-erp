@@ -83,6 +83,25 @@ export type RealEstateInstallmentUpdate =
 export type ExpenseType = PublicTable<"expense_types">["Row"];
 export type ExpenseTypeInsert = PublicTable<"expense_types">["Insert"];
 
+export type RecurringPayment = PublicTable<"recurring_payments">["Row"];
+export type RecurringPaymentInsert = PublicTable<"recurring_payments">["Insert"];
+export type RecurringPaymentUpdate = PublicTable<"recurring_payments">["Update"];
+
+export type RecurringPaymentOccurrence =
+  PublicTable<"recurring_payment_occurrences">["Row"];
+export type RecurringPaymentOccurrenceInsert =
+  PublicTable<"recurring_payment_occurrences">["Insert"];
+export type RecurringPaymentOccurrenceUpdate =
+  PublicTable<"recurring_payment_occurrences">["Update"];
+
+export const RECURRING_PAYMENT_STATUSES = ["active", "paused"] as const;
+export type RecurringPaymentStatus =
+  (typeof RECURRING_PAYMENT_STATUSES)[number];
+
+export const RECURRING_OCCURRENCE_STATUSES = ["paid", "skipped"] as const;
+export type RecurringOccurrenceStatus =
+  (typeof RECURRING_OCCURRENCE_STATUSES)[number];
+
 export type MonthlyFxOverride = PublicTable<"monthly_fx_overrides">["Row"];
 export type MonthlyFxOverrideInsert = PublicTable<"monthly_fx_overrides">["Insert"];
 export type MonthlyFxOverrideUpdate = PublicTable<"monthly_fx_overrides">["Update"];
@@ -146,7 +165,13 @@ export const ORTAK_MOVEMENT_TYPES = [
 ] as const;
 export type OrtakMovementType = (typeof ORTAK_MOVEMENT_TYPES)[number];
 
-export const ASSET_TYPES = ["fiat", "crypto", "metal", "fund"] as const;
+export const ASSET_TYPES = [
+  "fiat",
+  "credit_card",
+  "crypto",
+  "metal",
+  "fund",
+] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
 
 export const TRANSACTION_KINDS = [
@@ -165,7 +190,6 @@ export const TRANSACTION_KINDS = [
   "shipment_billing",
   "shipment_cogs",
   "shipment_freight",
-  "adjustment",
 ] as const;
 export type TransactionKind = (typeof TRANSACTION_KINDS)[number];
 

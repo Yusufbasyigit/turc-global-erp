@@ -16,7 +16,6 @@ export const TRANSACTION_KIND_LABELS: Record<TransactionKind, string> = {
   shipment_billing: "Shipment billing",
   shipment_cogs: "Shipment COGS",
   shipment_freight: "Shipment freight",
-  adjustment: "Adjustment",
 };
 
 export const TRANSACTION_KIND_DESCRIPTIONS: Record<TransactionKind, string> = {
@@ -35,7 +34,6 @@ export const TRANSACTION_KIND_DESCRIPTIONS: Record<TransactionKind, string> = {
   shipment_billing: "Shipment was billed to a customer (accrual).",
   shipment_cogs: "Cost of goods recognized at shipment booking (accrual).",
   shipment_freight: "Freight cost recognized at shipment booking (accrual).",
-  adjustment: "Bookkeeping adjustment.",
 };
 
 export const TRANSACTION_KIND_BADGE_CLASSES: Record<TransactionKind, string> = {
@@ -69,8 +67,6 @@ export const TRANSACTION_KIND_BADGE_CLASSES: Record<TransactionKind, string> = {
     "border-transparent bg-rose-500/15 text-rose-800 hover:bg-rose-500/25",
   shipment_freight:
     "border-transparent bg-rose-500/15 text-rose-800 hover:bg-rose-500/25",
-  adjustment:
-    "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25",
 };
 
 export const CASH_IN_KINDS: TransactionKind[] = [
@@ -95,7 +91,6 @@ export const ACCRUAL_KINDS: TransactionKind[] = [
   "shipment_billing",
   "shipment_cogs",
   "shipment_freight",
-  "adjustment",
 ];
 
 export type SpawnDirection = "deposit" | "withdraw";
@@ -124,4 +119,88 @@ export function kindSpawnsMovement(
   if (!direction) return false;
   if (direction === "deposit") return hasToAccount;
   return hasFromAccount;
+}
+
+// ---------------------------------------------------------------------------
+// Kind picker tree — drives the 2-3 level wizard in the transaction dialog.
+// `kinds` and `subCategories` are mutually exclusive per category.
+// ---------------------------------------------------------------------------
+
+export type KindCategoryId = "in" | "out" | "bills";
+export type KindSubCategoryId = "operating" | "partner";
+
+export type KindSubCategory = {
+  id: KindSubCategoryId;
+  label: string;
+  description: string;
+  kinds: TransactionKind[];
+};
+
+export type KindCategory = {
+  id: KindCategoryId;
+  label: string;
+  description: string;
+  kinds?: TransactionKind[];
+  subCategories?: KindSubCategory[];
+};
+
+export const KIND_CATEGORIES: KindCategory[] = [
+  {
+    id: "in",
+    label: "Money in",
+    description: "Cash received by the business.",
+    kinds: ["client_payment", "other_income", "partner_loan_in"],
+  },
+  {
+    id: "out",
+    label: "Money out",
+    description: "Cash paid out by the business.",
+    subCategories: [
+      {
+        id: "operating",
+        label: "Operating",
+        description: "Day-to-day: suppliers, expenses, refunds, taxes.",
+        kinds: [
+          "supplier_payment",
+          "expense",
+          "other_expense",
+          "client_refund",
+          "tax_payment",
+        ],
+      },
+      {
+        id: "partner",
+        label: "Partner",
+        description: "Partner loans and profit distributions.",
+        kinds: ["partner_loan_out", "profit_distribution"],
+      },
+    ],
+  },
+  {
+    id: "bills",
+    label: "Bills (accruals)",
+    description: "Invoices and accruals not yet paid.",
+    kinds: [
+      "supplier_invoice",
+      "order_billing",
+      "shipment_billing",
+      "shipment_cogs",
+      "shipment_freight",
+    ],
+  },
+];
+
+export function locateKind(k: TransactionKind): {
+  category: KindCategoryId;
+  sub: KindSubCategoryId | null;
+} {
+  for (const cat of KIND_CATEGORIES) {
+    if (cat.kinds?.includes(k)) return { category: cat.id, sub: null };
+    if (cat.subCategories) {
+      for (const sub of cat.subCategories) {
+        if (sub.kinds.includes(k)) return { category: cat.id, sub: sub.id };
+      }
+    }
+  }
+  throw new Error(`Unknown transaction kind: ${k}`);
 }

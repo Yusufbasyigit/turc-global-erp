@@ -15,7 +15,6 @@ const LEDGER_KINDS = [
   "shipment_billing",
   "client_payment",
   "client_refund",
-  "adjustment",
 ] as const;
 
 export function LedgerFilters({

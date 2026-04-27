@@ -1348,73 +1348,6 @@ async function case09(): Promise<Result> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Case 10: Adjustment after arrived appears in ledger and is consumed by FIFO
-// ─────────────────────────────────────────────────────────────
-async function case10(): Promise<Result> {
-  const name =
-    "10. Adjustment row after arrived: visible in ledger AND consumed by FIFO to bring outstanding to 0";
-
-  // The decisions log says (2026-04-23 adjustment kind): "the generic 'make
-  // the books match reality' escape hatch". The fifo-allocation.ts code, by
-  // inspection, does NOT consume adjustment events into shipment_allocations;
-  // it pushes them into `standalone_adjustments` and they do NOT reduce
-  // outstanding. Additionally, the transactions schema CHECK forbids amount
-  // <= 0 (`CHECK (amount > 0)`), so amount=-300 cannot be inserted.
-  //
-  // We test the ledger pure function directly with a positive-amount
-  // adjustment carrying related_shipment_id, to surface the gap.
-
-  const events: LedgerEvent[] = [
-    {
-      id: "B1",
-      date: "2026-01-01",
-      kind: "shipment_billing",
-      amount: 1000,
-      currency: "EUR",
-      related_shipment_id: "shp-arr",
-      fx_converted_amount: null,
-      fx_target_currency: null,
-    },
-    {
-      id: "P1",
-      date: "2026-02-01",
-      kind: "client_payment",
-      amount: 700,
-      currency: "EUR",
-      related_shipment_id: null,
-      fx_converted_amount: null,
-      fx_target_currency: null,
-    },
-    {
-      id: "ADJ",
-      date: "2026-03-01",
-      kind: "adjustment",
-      amount: 300,
-      currency: "EUR",
-      related_shipment_id: "shp-arr",
-      fx_converted_amount: null,
-      fx_target_currency: null,
-    },
-  ];
-  const r = allocateFifo(events, "EUR");
-  const ship = r.shipment_allocations.find(
-    (a) => a.related_shipment_id === "shp-arr",
-  );
-  const adjVisible = r.standalone_adjustments.some((a) => a.id === "ADJ");
-
-  const expected =
-    "shipment outstanding=0 after applying the -300 adjustment; adjustment row visible in ledger";
-  const actual = `outstanding=${ship?.outstanding_amount} (paid=${ship?.paid_amount}/billed=${ship?.billed_amount}); adjustment in standalone_adjustments=${adjVisible}; adjustment is NOT applied to outstanding by allocateFifo`;
-
-  return review(
-    name,
-    expected,
-    actual,
-    "Decisions.md does not specify how `adjustment` rows interact with FIFO. The current allocateFifo implementation pushes adjustments into a `standalone_adjustments` array and does not reduce outstanding. Additionally, transactions.amount > 0 CHECK constraint forbids storing a negative-amount row, so the documented 'amount=-300' fixture is impossible at the DB layer. Suggested clarification for decisions.md: (1) decide whether adjustment rows with related_shipment_id should be consumed by FIFO, and how their sign is encoded (separate kind 'credit_adjustment' vs. signed convention), and (2) document the resulting rule. As written, the case description in this prompt assumes a behavior the code does not implement.",
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
 // Case 11: XOR enforcement at DB level
 // ─────────────────────────────────────────────────────────────
 async function case11(): Promise<Result> {
@@ -1857,7 +1790,6 @@ async function cleanup(): Promise<{
     { run: case07, label: "7" },
     { run: case08, label: "8" },
     { run: case09, label: "9" },
-    { run: case10, label: "10" },
     { run: case11, label: "11" },
     { run: case12, label: "12" },
     { run: case13, label: "13" },

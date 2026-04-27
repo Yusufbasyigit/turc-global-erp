@@ -178,7 +178,6 @@ async function listLedgerForContactCompat(contactId: string): Promise<
         "shipment_billing",
         "client_payment",
         "client_refund",
-        "adjustment",
       ])
       .order("transaction_date", { ascending: true })
       .order("id", { ascending: true });
@@ -1530,153 +1529,6 @@ async function scenario6(n: Notes) {
   void shipmentId1;
 }
 
-async function scenario7(n: Notes) {
-  const sb = rawClient();
-  const customerId = ctx.customerId as string;
-  const shipmentId1 = ctx.shipmentId1 as string;
-
-  // Shipment 1 outstanding before adjustment
-  const beforeEvents = (
-    await listLedgerForContactCompat(customerId)
-  ).map<LedgerEvent>((r) => ({
-    id: r.id,
-    date: r.transaction_date,
-    kind: r.kind as LedgerEvent["kind"],
-    amount: Number(r.amount),
-    currency: r.currency,
-    related_shipment_id: r.related_shipment_id,
-    fx_converted_amount:
-      r.fx_converted_amount === null ? null : Number(r.fx_converted_amount),
-    fx_target_currency: r.fx_target_currency,
-  }));
-  const fifoBefore = allocateFifo(beforeEvents, "EUR");
-  const ship1Before = fifoBefore.shipment_allocations.find(
-    (a) => a.related_shipment_id === shipmentId1,
-  );
-
-  // Insert adjustment row (kind='adjustment', -100 EUR — credit)
-  // The DB CHECK constraint `transactions_amount_check` rejects negative
-  // amounts. Try negative first; if rejected, retry with positive and log
-  // the finding.
-  const adjId = randomUUID();
-  let adj: Awaited<ReturnType<typeof createTransaction>>;
-  try {
-    adj = await createTransaction({
-      id: adjId,
-      payload: {
-        kind: "adjustment",
-        transaction_date: todayDate(),
-        contact_id: customerId,
-        partner_id: null,
-        amount: -100,
-        currency: "EUR",
-        related_shipment_id: shipmentId1,
-        from_account_id: null,
-        to_account_id: null,
-        reference_number: "AUDIT_ADJ_1",
-        description: "Credit adjustment for audit",
-        vat_rate: null,
-        vat_amount: null,
-        net_amount: null,
-        fx_rate_applied: null,
-        fx_target_currency: null,
-        fx_converted_amount: null,
-        attachment_path: null,
-      },
-    });
-  } catch (e) {
-    const msg = errToString(e);
-    if (msg.includes("transactions_amount_check") || msg.includes("23514")) {
-      decisionsToLog.push(
-        "transactions_amount_check rejects negative amounts — even for adjustment kinds. This means credit adjustments cannot be modeled via a single negative-amount row. The product needs to either (a) drop the CHECK and rely on kind-based sign convention, or (b) add a separate `direction` column (debit/credit) so adjustments can stay positive but indicate direction. As-is, you can't post a credit memo against a customer.",
-      );
-      warnings.push(
-        "transactions_amount_check rejects negative; using positive 100 EUR for the adjustment test",
-      );
-      adj = await createTransaction({
-        id: adjId,
-        payload: {
-          kind: "adjustment",
-          transaction_date: todayDate(),
-          contact_id: customerId,
-          partner_id: null,
-          amount: 100,
-          currency: "EUR",
-          related_shipment_id: shipmentId1,
-          from_account_id: null,
-          to_account_id: null,
-          reference_number: "AUDIT_ADJ_1",
-          description: "Adjustment (positive) for audit",
-          vat_rate: null,
-          vat_amount: null,
-          net_amount: null,
-          fx_rate_applied: null,
-          fx_target_currency: null,
-          fx_converted_amount: null,
-          attachment_path: null,
-        },
-      });
-    } else {
-      throw e;
-    }
-  }
-  tracked.transactions.push(adj.transaction.id);
-
-  // After
-  const afterEvents = (
-    await listLedgerForContactCompat(customerId)
-  ).map<LedgerEvent>((r) => ({
-    id: r.id,
-    date: r.transaction_date,
-    kind: r.kind as LedgerEvent["kind"],
-    amount: Number(r.amount),
-    currency: r.currency,
-    related_shipment_id: r.related_shipment_id,
-    fx_converted_amount:
-      r.fx_converted_amount === null ? null : Number(r.fx_converted_amount),
-    fx_target_currency: r.fx_target_currency,
-  }));
-  const fifoAfter = allocateFifo(afterEvents, "EUR");
-  const ship1After = fifoAfter.shipment_allocations.find(
-    (a) => a.related_shipment_id === shipmentId1,
-  );
-
-  const beforeOutstanding = ship1Before?.outstanding_amount ?? 0;
-  const afterOutstanding = ship1After?.outstanding_amount ?? 0;
-  // Per spec the adjustment should drop ship1 outstanding by 100. Per
-  // current allocateFifo logic, adjustments are NOT applied to billings
-  // — they're collected into standalone_adjustments. This is a finding.
-  if (approxEqual(beforeOutstanding - afterOutstanding, 100)) {
-    n.ok(
-      `adjustment dropped outstanding ${beforeOutstanding} -> ${afterOutstanding}`,
-    );
-  } else {
-    const found = fifoAfter.standalone_adjustments.find(
-      (e) => e.id === adj.transaction.id,
-    );
-    if (!found) {
-      n.fail(
-        "adjustment surfaced",
-        "missing",
-        "adjustment must surface in FIFO output (either as outstanding drop or standalone)",
-      );
-    }
-    decisionsToLog.push(
-      "FIFO behavior on adjustments: allocateFifo() puts adjustment kinds into `standalone_adjustments` and does NOT reduce shipment outstanding. The audit spec assumed adjustments would be consumed FIFO. Either the spec or the implementation is wrong — likely the implementation, since the user-facing concept of an adjustment IS a credit/debit against an invoice. Open question: should allocateFifo treat adjustments as paid amounts targeted at related_shipment_id?",
-    );
-    n.log(
-      `FINDING: adjustments don't reduce outstanding via FIFO (before=${beforeOutstanding}, after=${afterOutstanding}). Surfaced in standalone_adjustments only.`,
-    );
-    // Fail the assertion explicitly so it shows in the report.
-    n.fail(
-      `outstanding drops by 100 (${beforeOutstanding - 100})`,
-      `outstanding=${afterOutstanding}, standalone_adjustments contains adjustment`,
-      "FIFO consumes adjustment to reduce outstanding",
-    );
-  }
-  void sb;
-}
-
 async function scenario8(n: Notes) {
   const sb = rawClient();
   const custodyId = await pickCustodyLocation();
@@ -2715,7 +2567,6 @@ async function main() {
   await runScenario("Scenario 4: Customer payments + FIFO", scenario4);
   await runScenario("Scenario 5: Roll-over", scenario5);
   await runScenario("Scenario 6: Cancellation", scenario6);
-  await runScenario("Scenario 7: Adjustment", scenario7);
   await runScenario("Scenario 8: Treasury movements", scenario8);
   await runScenario("Scenario 9: Partner flows", scenario9);
   await runScenario("Scenario 10: KDV", scenario10);
@@ -2755,31 +2606,25 @@ async function main() {
     "   - `20260427120000_transactions_shipment_fk.sql` — the FK `transactions_related_shipment_id_fkey` doesn't exist. `listTransactionsForContact` (used by ledger/statement pages) PostgREST-embeds shipments via this hint and 500s.",
   );
   lines.push(
-    "2. **`transactions_amount_check` rejects negative `amount` even for `adjustment` kind.** A credit memo cannot be posted (scenario 7). Either drop the CHECK, or add a `direction` column.",
+    "2. **FIFO same-date tie-break is by UUID.** Two shipment_billings booked on the same calendar day can have payments allocated in non-creation order. Add `created_time` (or a row sequence) as a secondary sort key.",
   );
   lines.push(
-    "3. **`allocateFifo()` does NOT consume `adjustment` events.** They land in `standalone_adjustments` and never reduce shipment outstanding. The audit spec assumed they would. (scenario 7 FAIL)",
+    "3. **`product_categories` RLS rejects anon INSERT and SELECT,** even though all other tables allow it under dev. The product form's category dropdown won't load for unauthenticated sessions.",
   );
   lines.push(
-    "4. **FIFO same-date tie-break is by UUID.** Two shipment_billings booked on the same calendar day can have payments allocated in non-creation order. Add `created_time` (or a row sequence) as a secondary sort key.",
+    "4. **`cancelOrder` is blocked when `billing_shipment_id` points at an arrived shipment.** No way to cancel-with-rebate post-arrival via the existing mutation. Worth a product decision.",
   );
   lines.push(
-    "5. **`product_categories` RLS rejects anon INSERT and SELECT,** even though all other tables allow it under dev. The product form's category dropdown won't load for unauthenticated sessions.",
+    "5. **No first-class roll-over mutation.** Setting `shipment_id ≠ billing_shipment_id` requires bypassing `assignOrderToShipment` (which always defaults billing to the same shipment when null). The roll-over case in scenario 5 had to call `.update()` directly. Worth exposing a real mutation.",
   );
   lines.push(
-    "6. **`cancelOrder` is blocked when `billing_shipment_id` points at an arrived shipment.** No way to cancel-with-rebate post-arrival via the existing mutation; an adjustment is the only path. Worth a product decision.",
+    "6. **Rolled-over line PDF rendering: data vs render split.** `StatementLine.unitPrice/lineTotal` keep their real numeric values; '—' suppression happens only inside `shipment-statement-pdf-line-table.tsx`. If you ever consume the data shape outside the renderer, you'd see real numbers — surprising for a 'roll-over' line.",
   );
   lines.push(
-    "7. **No first-class roll-over mutation.** Setting `shipment_id ≠ billing_shipment_id` requires bypassing `assignOrderToShipment` (which always defaults billing to the same shipment when null). The roll-over case in scenario 5 had to call `.update()` directly. Worth exposing a real mutation.",
+    "7. **Spec/code path mismatch:** spec said `{order_id}/proforma/{offer_number}.pdf` for proforma storage; actual code writes to `{order_id}/proposal/{offer_number}.pdf`.",
   );
   lines.push(
-    "8. **Rolled-over line PDF rendering: data vs render split.** `StatementLine.unitPrice/lineTotal` keep their real numeric values; '—' suppression happens only inside `shipment-statement-pdf-line-table.tsx`. If you ever consume the data shape outside the renderer, you'd see real numbers — surprising for a 'roll-over' line.",
-  );
-  lines.push(
-    "9. **Spec/code path mismatch:** spec said `{order_id}/proforma/{offer_number}.pdf` for proforma storage; actual code writes to `{order_id}/proposal/{offer_number}.pdf`.",
-  );
-  lines.push(
-    "10. **Proforma PDF render leaks ENOENT for `/logo.png`.** During scenario 2, two `ENOENT: no such file or directory, open '/logo.png'` lines appeared on stderr. Generation succeeded anyway, but the logo asset isn't being resolved correctly in the @react-pdf pipeline.",
+    "8. **Proforma PDF render leaks ENOENT for `/logo.png`.** During scenario 2, two `ENOENT: no such file or directory, open '/logo.png'` lines appeared on stderr. Generation succeeded anyway, but the logo asset isn't being resolved correctly in the @react-pdf pipeline.",
   );
   lines.push("");
 

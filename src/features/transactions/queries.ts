@@ -73,7 +73,6 @@ const CONTACT_LEDGER_KINDS = [
   "shipment_billing",
   "client_payment",
   "client_refund",
-  "adjustment",
 ] as const;
 
 export async function listTransactionsForContact(

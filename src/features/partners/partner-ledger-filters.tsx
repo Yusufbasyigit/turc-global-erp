@@ -16,7 +16,6 @@ const PARTNER_LEDGER_KIND_LABELS: Record<string, string> = {
   partner_loan_out: "Loan out / reimbursement payout",
   profit_distribution: "Profit distribution",
   expense: "Partner-paid expense",
-  adjustment: "Adjustment",
 };
 
 const PARTNER_LEDGER_KIND_ORDER = [
@@ -24,7 +23,6 @@ const PARTNER_LEDGER_KIND_ORDER = [
   "partner_loan_out",
   "profit_distribution",
   "expense",
-  "adjustment",
 ];
 
 export function PartnerLedgerFilters({

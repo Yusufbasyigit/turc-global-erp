@@ -146,13 +146,6 @@ export const transactionSchema = z
         .or(z.literal("")),
       ...commonFields,
     }),
-    // WAVE 2 — adjustment (no movement, no custody; contact/partner optional XOR)
-    z.object({
-      kind: z.literal("adjustment"),
-      contact_id: z.string().optional().default(""),
-      partner_id: z.string().optional().default(""),
-      ...commonFields,
-    }),
     // DISABLED (still defined so TRANSACTION_KINDS stays exhaustive) — order_billing
     z.object({
       kind: z.literal("order_billing"),
@@ -212,23 +205,6 @@ export const transactionSchema = z
           path: ["reference_number"],
           code: z.ZodIssueCode.custom,
           message: "Invoice number is required",
-        });
-      }
-    }
-    if (v.kind === "adjustment") {
-      const desc = v.description?.trim() ?? "";
-      if (desc.length < 5) {
-        ctx.addIssue({
-          path: ["description"],
-          code: z.ZodIssueCode.custom,
-          message: "Describe the reason (5+ chars)",
-        });
-      }
-      if (v.contact_id && v.partner_id) {
-        ctx.addIssue({
-          path: ["partner_id"],
-          code: z.ZodIssueCode.custom,
-          message: "Pick either a contact or a partner, not both",
         });
       }
     }
