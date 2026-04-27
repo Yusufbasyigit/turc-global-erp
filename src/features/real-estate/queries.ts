@@ -34,6 +34,8 @@ export const realEstateKeys = {
   all: ["real-estate"] as const,
   deals: () => [...realEstateKeys.all, "deals"] as const,
   detail: (id: string) => [...realEstateKeys.all, "deal", id] as const,
+  byContact: (contactId: string) =>
+    [...realEstateKeys.all, "by-contact", contactId] as const,
 };
 
 const DEAL_SELECT = `
@@ -43,20 +45,11 @@ const DEAL_SELECT = `
   installments:real_estate_installments(*)
 `;
 
-export async function listDealsWithRelations(): Promise<DealWithRelations[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("real_estate_deals")
-    .select(DEAL_SELECT)
-    .is("deleted_at", null)
-    .order("start_date", { ascending: false })
-    .order("id", { ascending: false });
-  if (error) throw error;
-
-  type DealRow = Omit<DealWithRelations, "receipts">;
-  const deals = (data ?? []) as unknown as DealRow[];
+async function attachReceipts(
+  deals: Omit<DealWithRelations, "receipts">[],
+): Promise<DealWithRelations[]> {
   if (deals.length === 0) return [];
-
+  const supabase = createClient();
   const dealIds = deals.map((d) => d.id);
   const { data: rxData, error: rxErr } = await supabase
     .from("transactions")
@@ -88,6 +81,37 @@ export async function listDealsWithRelations(): Promise<DealWithRelations[]> {
   }));
 }
 
+export async function listDealsWithRelations(): Promise<DealWithRelations[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("real_estate_deals")
+    .select(DEAL_SELECT)
+    .is("deleted_at", null)
+    .order("start_date", { ascending: false })
+    .order("id", { ascending: false });
+  if (error) throw error;
+
+  type DealRow = Omit<DealWithRelations, "receipts">;
+  return attachReceipts((data ?? []) as unknown as DealRow[]);
+}
+
+export async function listDealsForContact(
+  contactId: string,
+): Promise<DealWithRelations[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("real_estate_deals")
+    .select(DEAL_SELECT)
+    .eq("contact_id", contactId)
+    .is("deleted_at", null)
+    .order("start_date", { ascending: false })
+    .order("id", { ascending: false });
+  if (error) throw error;
+
+  type DealRow = Omit<DealWithRelations, "receipts">;
+  return attachReceipts((data ?? []) as unknown as DealRow[]);
+}
+
 export function computeDealStates(deals: DealWithRelations[]): DealState[] {
   const today = todayDateString();
   return deals.map((d) => {
@@ -113,6 +137,19 @@ export function useDealStates() {
   const q = useQuery({
     queryKey: realEstateKeys.deals(),
     queryFn: listDealsWithRelations,
+  });
+  const data = useMemo(
+    () => (q.data ? computeDealStates(q.data) : null),
+    [q.data],
+  );
+  return { ...q, data };
+}
+
+export function useDealStatesForContact(contactId: string) {
+  const q = useQuery({
+    queryKey: realEstateKeys.byContact(contactId),
+    queryFn: () => listDealsForContact(contactId),
+    enabled: Boolean(contactId),
   });
   const data = useMemo(
     () => (q.data ? computeDealStates(q.data) : null),

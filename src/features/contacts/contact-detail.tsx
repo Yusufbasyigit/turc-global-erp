@@ -27,6 +27,7 @@ import { DeleteContactDialog } from "./delete-contact-dialog";
 import { AddNoteDialog } from "./add-note-dialog";
 import { ContactLedgerSection } from "./contact-ledger-section";
 import { SupplierLedgerSection } from "./supplier-ledger-section";
+import { ContactRealEstateSection } from "./contact-real-estate-section";
 
 export function ContactDetail({ contactId }: { contactId: string }) {
   const [editOpen, setEditOpen] = useState(false);
@@ -220,6 +221,8 @@ export function ContactDetail({ contactId }: { contactId: string }) {
       ) : contact.type === "customer" ? (
         <ContactLedgerSection contactId={contactId} />
       ) : null}
+
+      <ContactRealEstateSection contactId={contactId} />
 
       <ContactFormDialog
         open={editOpen}
