@@ -167,9 +167,9 @@ function Stat({
 }) {
   const toneClass =
     tone === "emerald"
-      ? "text-emerald-300"
+      ? "text-emerald-700"
       : tone === "rose"
-        ? "text-rose-300"
+        ? "text-rose-700"
         : "text-foreground";
   return (
     <div>

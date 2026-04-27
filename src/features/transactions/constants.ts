@@ -14,6 +14,8 @@ export const TRANSACTION_KIND_LABELS: Record<TransactionKind, string> = {
   tax_payment: "Tax payment",
   order_billing: "Order billing",
   shipment_billing: "Shipment billing",
+  shipment_cogs: "Shipment COGS",
+  shipment_freight: "Shipment freight",
   adjustment: "Adjustment",
 };
 
@@ -31,38 +33,44 @@ export const TRANSACTION_KIND_DESCRIPTIONS: Record<TransactionKind, string> = {
   tax_payment: "Tax payment to government.",
   order_billing: "Order was billed to a customer (accrual).",
   shipment_billing: "Shipment was billed to a customer (accrual).",
+  shipment_cogs: "Cost of goods recognized at shipment booking (accrual).",
+  shipment_freight: "Freight cost recognized at shipment booking (accrual).",
   adjustment: "Bookkeeping adjustment.",
 };
 
 export const TRANSACTION_KIND_BADGE_CLASSES: Record<TransactionKind, string> = {
   client_payment:
-    "border-transparent bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20",
+    "border-transparent bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25",
   client_refund:
-    "border-transparent bg-amber-500/15 text-amber-300 hover:bg-amber-500/20",
+    "border-transparent bg-amber-500/20 text-amber-800 hover:bg-amber-500/30",
   supplier_payment:
-    "border-transparent bg-rose-500/15 text-rose-300 hover:bg-rose-500/20",
+    "border-transparent bg-rose-500/15 text-rose-800 hover:bg-rose-500/25",
   supplier_invoice:
-    "border-transparent bg-zinc-500/15 text-zinc-300 hover:bg-zinc-500/20",
+    "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25",
   expense:
-    "border-transparent bg-rose-500/15 text-rose-300 hover:bg-rose-500/20",
+    "border-transparent bg-rose-500/15 text-rose-800 hover:bg-rose-500/25",
   other_income:
-    "border-transparent bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20",
+    "border-transparent bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25",
   other_expense:
-    "border-transparent bg-rose-500/15 text-rose-300 hover:bg-rose-500/20",
+    "border-transparent bg-rose-500/15 text-rose-800 hover:bg-rose-500/25",
   partner_loan_in:
-    "border-transparent bg-sky-500/15 text-sky-300 hover:bg-sky-500/20",
+    "border-transparent bg-sky-500/15 text-sky-800 hover:bg-sky-500/25",
   partner_loan_out:
-    "border-transparent bg-sky-500/15 text-sky-300 hover:bg-sky-500/20",
+    "border-transparent bg-sky-500/15 text-sky-800 hover:bg-sky-500/25",
   profit_distribution:
-    "border-transparent bg-violet-500/15 text-violet-300 hover:bg-violet-500/20",
+    "border-transparent bg-violet-500/15 text-violet-800 hover:bg-violet-500/25",
   tax_payment:
-    "border-transparent bg-orange-500/15 text-orange-300 hover:bg-orange-500/20",
+    "border-transparent bg-orange-500/20 text-orange-800 hover:bg-orange-500/30",
   order_billing:
-    "border-transparent bg-zinc-500/15 text-zinc-300 hover:bg-zinc-500/20",
+    "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25",
   shipment_billing:
-    "border-transparent bg-zinc-500/15 text-zinc-300 hover:bg-zinc-500/20",
+    "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25",
+  shipment_cogs:
+    "border-transparent bg-rose-500/15 text-rose-800 hover:bg-rose-500/25",
+  shipment_freight:
+    "border-transparent bg-rose-500/15 text-rose-800 hover:bg-rose-500/25",
   adjustment:
-    "border-transparent bg-zinc-500/15 text-zinc-300 hover:bg-zinc-500/20",
+    "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25",
 };
 
 export const CASH_IN_KINDS: TransactionKind[] = [
@@ -85,6 +93,8 @@ export const ACCRUAL_KINDS: TransactionKind[] = [
   "supplier_invoice",
   "order_billing",
   "shipment_billing",
+  "shipment_cogs",
+  "shipment_freight",
   "adjustment",
 ];
 

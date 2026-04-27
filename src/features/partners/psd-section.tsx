@@ -1,17 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { CalendarDays, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency as formatMoney } from "@/lib/format-money";
 import { usePsdSummary } from "./queries/psd-summary";
 import { PsdCalendarDrawer } from "./psd-calendar-drawer";
+import { PsdEventDialog } from "./psd-event-dialog";
+import type { PsdEventWithLegs } from "./queries/psd-summary";
 
 export function PsdSection() {
-  const router = useRouter();
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<PsdEventWithLegs | null>(
+    null,
+  );
   const currentYear = new Date().getFullYear();
 
   const { data, isLoading, isError, error } = usePsdSummary({
@@ -29,18 +33,20 @@ export function PsdSection() {
       .sort((a, b) => a.currency.localeCompare(b.currency));
   }, [data]);
 
-  const logPsd = () => {
-    const params = new URLSearchParams({
-      action: "new",
-      kind: "profit_distribution",
-    });
-    router.push(`/transactions?${params.toString()}`);
+  const openLogDialog = () => {
+    setEditingEvent(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (event: PsdEventWithLegs) => {
+    setEditingEvent(event);
+    setDialogOpen(true);
   };
 
   return (
     <section className="flex flex-col gap-2 border-y border-border py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 min-w-0">
-        <span className="text-sm font-medium">PSD {currentYear}</span>
+        <span className="text-sm font-medium">PSD {currentYear} YTD</span>
         {isLoading ? (
           <Skeleton className="h-5 w-40" />
         ) : isError ? (
@@ -74,7 +80,7 @@ export function PsdSection() {
           <CalendarDays className="mr-2 size-4" />
           Calendar
         </Button>
-        <Button size="sm" onClick={logPsd}>
+        <Button size="sm" onClick={openLogDialog}>
           <Plus className="mr-2 size-4" />
           Log PSD
         </Button>
@@ -84,6 +90,13 @@ export function PsdSection() {
         open={calendarOpen}
         onOpenChange={setCalendarOpen}
         currentYear={currentYear}
+        onEditEvent={openEditDialog}
+      />
+
+      <PsdEventDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        event={editingEvent}
       />
     </section>
   );

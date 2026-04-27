@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format-money";
+import { formatDateOnly } from "@/lib/format-date";
 import type {
   AccountWithCustody,
   TransactionKind,
@@ -64,7 +65,7 @@ import {
 } from "./transaction-form-dialog";
 
 const PARTNER_BADGE_CLASSES =
-  "border-transparent bg-violet-500/15 text-violet-300 hover:bg-violet-500/20";
+  "border-transparent bg-violet-500/15 text-violet-800 hover:bg-violet-500/25";
 
 type GroupBy = "flat" | "kind" | "month";
 
@@ -79,16 +80,7 @@ function counterpartyLabel(t: TransactionWithRelations): string {
 }
 
 function formatDateShort(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    });
-  } catch {
-    return dateStr;
-  }
+  return formatDateOnly(dateStr);
 }
 
 function formatMoney(amount: number | string | null, currency: string): string {
@@ -263,7 +255,7 @@ export function TransactionsIndex() {
     setEditing(null);
     setFormOpen(true);
     router.replace("/transactions", { scroll: false });
-  }, [searchParams, router]);
+  }, [searchParams, router, transactions]);
 
   const openNew = () => {
     setEditing(null);

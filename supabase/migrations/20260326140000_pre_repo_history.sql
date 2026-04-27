@@ -1,0 +1,1 @@
+-- Pre-existing remote migration applied before this repo's history began. Stub kept locally so the CLI sees parity with the remote schema_migrations table.

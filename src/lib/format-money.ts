@@ -12,6 +12,7 @@ function getCurrencyFormatter(currency: string): Intl.NumberFormat | null {
     const fmt = new Intl.NumberFormat(undefined, {
       style: "currency",
       currency,
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
     currencyFormatters.set(currency, fmt);

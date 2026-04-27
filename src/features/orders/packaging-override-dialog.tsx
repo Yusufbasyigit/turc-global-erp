@@ -302,7 +302,7 @@ function DerivedVolumeHint({
               (line snapshot {explicit.toFixed(4)} m³ wins)
             </span>
           ) : (
-            <span className="ml-1 text-emerald-300">
+            <span className="ml-1 text-emerald-700">
               — used because line snapshot is blank
             </span>
           )}

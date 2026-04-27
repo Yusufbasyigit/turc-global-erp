@@ -117,7 +117,7 @@ export function BatchImportStep3Confirm({
 
       {/* Currency mismatch banner */}
       {currencyMismatch ? (
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-50 p-2 text-xs text-amber-900">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
           <div>
             Proforma currency ({parsed.currency}) differs from order currency (

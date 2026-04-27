@@ -137,7 +137,7 @@ function StatusBadge({
   if (isDeleted) return <Badge variant="destructive">Deleted</Badge>;
   if (isActive)
     return (
-      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-transparent">
+      <Badge className="bg-emerald-500/15 text-emerald-700 border-transparent">
         Active
       </Badge>
     );

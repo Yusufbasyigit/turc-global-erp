@@ -109,6 +109,23 @@ export async function deleteContact(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function restoreContact(id: string): Promise<void> {
+  const supabase = createClient();
+  const userId = await currentUserId();
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("contacts")
+    .update({
+      deleted_at: null,
+      edited_by: userId,
+      edited_time: now,
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 export async function addContactNote(
   contactId: string,
   values: ContactNoteFormValues,

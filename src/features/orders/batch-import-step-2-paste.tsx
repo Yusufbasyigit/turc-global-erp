@@ -80,9 +80,9 @@ export function BatchImportStep2Paste({
           state.status === "parseError" &&
             "border-destructive/50 bg-destructive/5 text-destructive",
           state.status === "zodError" &&
-            "border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-900/20 dark:text-amber-200",
+            "border-amber-500/40 bg-amber-50 text-amber-900",
           state.status === "ok" &&
-            "border-emerald-500/40 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-200",
+            "border-emerald-500/40 bg-emerald-50 text-emerald-900",
         )}
       >
         {state.status === "ok" ? (

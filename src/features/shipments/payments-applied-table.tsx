@@ -138,7 +138,7 @@ export function PaymentsAppliedTable({
                   className="px-3 py-2 text-right text-xs tabular-nums"
                   title={tooltipLines.join("\n")}
                 >
-                  <span className="font-medium text-emerald-300">
+                  <span className="font-medium text-emerald-700">
                     {formatMoney(alloc.allocated_amount)} {displayCurrency}
                   </span>
                   {others.length > 0 ? (

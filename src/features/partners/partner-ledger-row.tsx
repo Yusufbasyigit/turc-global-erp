@@ -10,15 +10,15 @@ import { PARTNER_LEDGER_KIND_LABELS } from "./partner-ledger-filters";
 
 const KIND_BADGE_CLASSES: Record<string, string> = {
   partner_loan_in:
-    "border-transparent bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20",
+    "border-transparent bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25",
   partner_loan_out:
-    "border-transparent bg-rose-500/15 text-rose-300 hover:bg-rose-500/20",
+    "border-transparent bg-rose-500/15 text-rose-800 hover:bg-rose-500/25",
   profit_distribution:
-    "border-transparent bg-violet-500/15 text-violet-300 hover:bg-violet-500/20",
+    "border-transparent bg-violet-500/15 text-violet-800 hover:bg-violet-500/25",
   expense:
-    "border-transparent bg-amber-500/15 text-amber-300 hover:bg-amber-500/20",
+    "border-transparent bg-amber-500/20 text-amber-800 hover:bg-amber-500/30",
   adjustment:
-    "border-transparent bg-zinc-500/15 text-zinc-300 hover:bg-zinc-500/20",
+    "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25",
 };
 
 function formatDate(d: string): string {
@@ -77,8 +77,8 @@ function PartnerLedgerRowImpl({
   const kindClass = KIND_BADGE_CLASSES[row.kind] ?? KIND_BADGE_CLASSES.adjustment;
 
   let amountTone = "text-foreground";
-  if (dir === "in") amountTone = "text-emerald-300";
-  else if (dir === "out") amountTone = "text-rose-300";
+  if (dir === "in") amountTone = "text-emerald-700";
+  else if (dir === "out") amountTone = "text-rose-700";
 
   const accountName = row.from_account
     ? row.from_account.account_name
@@ -134,14 +134,14 @@ function DirectionIcon({ dir }: { dir: LedgerDirection }) {
   if (dir === "in")
     return (
       <ArrowDownLeft
-        className="mx-auto size-3.5 text-emerald-400"
+        className="mx-auto size-3.5 text-emerald-700"
         aria-label="Money to business"
       />
     );
   if (dir === "out")
     return (
       <ArrowUpRight
-        className="mx-auto size-3.5 text-rose-400"
+        className="mx-auto size-3.5 text-rose-700"
         aria-label="Money from business"
       />
     );

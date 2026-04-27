@@ -2,6 +2,7 @@ import { Text, View } from "@react-pdf/renderer";
 import { statementStyles } from "./shipment-statement-pdf-styles";
 import { formatProformaMoney } from "@/lib/proforma/proforma-money";
 import { formatOfferDateShort } from "@/lib/proforma/istanbul-date";
+import { pdfText } from "./text-encoding";
 import type { StatementData } from "./shipment-statement-pdf-types";
 
 function BalanceRow({
@@ -13,11 +14,11 @@ function BalanceRow({
 }) {
   if (balance > 0) {
     return (
-      <View style={statementStyles.balanceRow}>
-        <Text style={[statementStyles.balanceLabel, statementStyles.balanceRed]}>
-          BALANCE:
-        </Text>
-        <Text style={[statementStyles.balanceValue, statementStyles.balanceRed]}>
+      <View style={statementStyles.balanceBlock}>
+        <Text style={statementStyles.balanceLabel}>SOLDE DÛ</Text>
+        <Text
+          style={[statementStyles.balanceValue, statementStyles.balanceRed]}
+        >
           {formatProformaMoney(balance, currency)}
         </Text>
       </View>
@@ -25,12 +26,8 @@ function BalanceRow({
   }
   if (balance < 0) {
     return (
-      <View style={statementStyles.balanceRow}>
-        <Text
-          style={[statementStyles.balanceLabel, statementStyles.balanceGreen]}
-        >
-          Crédit:
-        </Text>
+      <View style={statementStyles.balanceBlock}>
+        <Text style={statementStyles.balanceLabel}>CRÉDIT EN FAVEUR</Text>
         <Text
           style={[statementStyles.balanceValue, statementStyles.balanceGreen]}
         >
@@ -40,11 +37,11 @@ function BalanceRow({
     );
   }
   return (
-    <View style={statementStyles.balanceRow}>
-      <Text style={[statementStyles.balanceLabel, statementStyles.balanceMuted]}>
-        Solde:
-      </Text>
-      <Text style={[statementStyles.balanceValue, statementStyles.balanceMuted]}>
+    <View style={statementStyles.balanceBlock}>
+      <Text style={statementStyles.balanceLabel}>SOLDE</Text>
+      <Text
+        style={[statementStyles.balanceValue, statementStyles.balanceMuted]}
+      >
         {formatProformaMoney(0, currency)}
       </Text>
     </View>
@@ -61,52 +58,85 @@ export function ShipmentStatementPdfPaymentsBlock({
 
   return (
     <View style={statementStyles.sectionGap}>
-      <Text style={statementStyles.bar}>Paiements reçus</Text>
-      <View style={statementStyles.blockBody}>
-        {!hasPayments ? (
-          <Text style={statementStyles.emptyPayments}>
-            Aucun paiement reçu pour le moment.
-          </Text>
-        ) : (
-          <View style={statementStyles.paymentsTable}>
-            {data.payments.map((p, i) => (
+      <View style={statementStyles.sectionHead}>
+        <Text style={statementStyles.sectionHeadText}>
+          PAIEMENTS REÇUS · PAYMENTS RECEIVED
+        </Text>
+      </View>
+
+      {!hasPayments ? (
+        <Text style={statementStyles.emptyPayments}>
+          Aucun paiement reçu pour le moment.
+        </Text>
+      ) : (
+        <View style={statementStyles.paymentsTable}>
+          <View style={statementStyles.tHead}>
+            <Text
+              style={[statementStyles.tHeadCell, statementStyles.colPayDate]}
+            >
+              DATE
+            </Text>
+            <Text
+              style={[statementStyles.tHeadCell, statementStyles.colPayDesc]}
+            >
+              DESCRIPTION
+            </Text>
+            <Text
+              style={[
+                statementStyles.tHeadCell,
+                statementStyles.colPayAmount,
+              ]}
+            >
+              MONTANT
+            </Text>
+          </View>
+          {data.payments.map((p, i) => (
+            <View
+              key={`${p.date}-${i}`}
+              style={[
+                statementStyles.tRow,
+                i % 2 === 1 ? statementStyles.tRowZebra : {},
+                { minHeight: 24 },
+              ]}
+            >
               <View
-                key={`${p.date}-${i}`}
+                style={[statementStyles.payTdMono, statementStyles.colPayDate]}
+              >
+                <Text>{formatOfferDateShort(p.date)}</Text>
+              </View>
+              <View
+                style={[statementStyles.payTd, statementStyles.colPayDesc]}
+              >
+                <Text>{pdfText(p.description)}</Text>
+                {p.partialAnnotation ? (
+                  <Text style={statementStyles.rolledOverNote}>
+                    {pdfText(p.partialAnnotation)}
+                  </Text>
+                ) : null}
+              </View>
+              <View
                 style={[
-                  statementStyles.tRow,
-                  i % 2 === 1 ? statementStyles.tRowZebra : {},
-                  { minHeight: 22 },
+                  statementStyles.payTdMono,
+                  statementStyles.colPayAmount,
                 ]}
               >
-                <View style={[statementStyles.td, statementStyles.colPayDate]}>
-                  <Text>{formatOfferDateShort(p.date)}</Text>
-                </View>
-                <View style={[statementStyles.td, statementStyles.colPayDesc]}>
-                  <Text>{p.description}</Text>
-                  {p.partialAnnotation ? (
-                    <Text style={statementStyles.rolledOverNote}>
-                      {p.partialAnnotation}
-                    </Text>
-                  ) : null}
-                </View>
-                <View style={[statementStyles.td, statementStyles.colPayAmount]}>
-                  <Text>
-                    {formatProformaMoney(p.allocatedAmount, currency)}
-                  </Text>
-                </View>
-              </View>
-            ))}
-            <View style={[statementStyles.totalsBlock, { marginTop: 4 }]}>
-              <View style={statementStyles.totalsRow}>
-                <Text style={statementStyles.totalsLabel}>Total reçu:</Text>
-                <Text style={statementStyles.totalsValue}>
-                  {formatProformaMoney(data.totalReceived, currency)}
+                <Text>
+                  {formatProformaMoney(p.allocatedAmount, currency)}
                 </Text>
               </View>
             </View>
+          ))}
+          <View style={statementStyles.totalsBlock}>
+            <View style={statementStyles.totalsRow}>
+              <Text style={statementStyles.totalsLabel}>Total reçu</Text>
+              <Text style={statementStyles.totalsValue}>
+                {formatProformaMoney(data.totalReceived, currency)}
+              </Text>
+            </View>
           </View>
-        )}
-      </View>
+        </View>
+      )}
+
       <BalanceRow balance={data.balance} currency={currency} />
     </View>
   );

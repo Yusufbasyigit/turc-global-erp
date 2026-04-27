@@ -183,9 +183,9 @@ export function ShipmentsIndex() {
                   : null;
                 const fillTone = fill
                   ? fill.overCbm || fill.overWeight
-                    ? "text-rose-400"
+                    ? "text-rose-700"
                     : fill.tightCbm || fill.tightWeight
-                      ? "text-amber-400"
+                      ? "text-amber-700"
                       : "text-muted-foreground"
                   : "text-muted-foreground";
                 return (

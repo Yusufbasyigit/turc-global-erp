@@ -25,13 +25,13 @@ export async function listPartnersWithStats(): Promise<PartnerWithStats[]> {
   })[];
 
   return rows.map((p) => {
-    const txns = p.transactions ?? [];
+    const { transactions, ...rest } = p;
+    const txns = transactions ?? [];
     const last = txns.reduce<string | null>(
       (acc, t) =>
         acc === null || t.transaction_date > acc ? t.transaction_date : acc,
       null,
     );
-    const { transactions: _t, ...rest } = p;
     return {
       ...rest,
       transaction_count: txns.length,

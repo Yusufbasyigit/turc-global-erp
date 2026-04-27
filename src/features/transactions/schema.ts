@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   BALANCE_CURRENCIES,
   KDV_RATES,
+  REVENUE_SOURCES,
   TRANSACTION_KINDS,
 } from "@/lib/supabase/types";
 
@@ -59,6 +60,8 @@ export const transactionSchema = z
       fx_rate_applied: optionalPositiveNumber,
       fx_target_currency: z.string().optional().default(""),
       fx_converted_amount: optionalPositiveNumber,
+      real_estate_deal_id: z.string().optional().default(""),
+      revenue_source: z.enum(REVENUE_SOURCES).optional(),
       ...commonFields,
     }),
     // WAVE 1 — client_refund
@@ -124,10 +127,10 @@ export const transactionSchema = z
       from_account_id: requiredString("Pick a source account"),
       ...commonFields,
     }),
-    // WAVE 2 — profit_distribution (cash out, partner optional)
+    // WAVE 2 — profit_distribution (cash out, leg of a PSD event — never tied
+    // to a partner; logged exclusively via the PSD dialog on /partners)
     z.object({
       kind: z.literal("profit_distribution"),
-      partner_id: z.string().optional().default(""),
       from_account_id: requiredString("Pick a source account"),
       ...commonFields,
     }),

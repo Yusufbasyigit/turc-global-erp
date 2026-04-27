@@ -146,9 +146,16 @@ export async function assembleShipmentStatementData(
       shipmentId,
     );
     const qty = Number(r.quantity ?? 0);
-    const price =
+    const rawPrice =
       r.unit_sales_price === null ? null : Number(r.unit_sales_price);
-    const lineTotal = price === null ? null : qty * price;
+    const rawLineTotal = rawPrice === null ? null : qty * rawPrice;
+    // Rolled-over lines are billed on a different shipment; surface them
+    // here for context but suppress unit price and total at the data
+    // layer so every consumer (PDF, future API, exports) gets the same
+    // shape. Same for cancelled lines.
+    const visible = status === "new";
+    const unitPrice = visible ? rawPrice : null;
+    const lineTotal = visible ? rawLineTotal : null;
     const rolledOverToName =
       status === "rolled_over" && r.orders?.billing_shipment_id
         ? otherShipmentNames.get(r.orders.billing_shipment_id)
@@ -158,7 +165,7 @@ export async function assembleShipmentStatementData(
       productName: r.product_name_snapshot,
       quantity: qty,
       unit: r.unit_snapshot,
-      unitPrice: price,
+      unitPrice,
       lineTotal,
       status,
       rolledOverToName,
@@ -179,6 +186,7 @@ export async function assembleShipmentStatementData(
   const events: LedgerEvent[] = ledgerRows.map((row) => ({
     id: row.id,
     date: row.transaction_date,
+    created_time: row.created_time,
     kind: row.kind as LedgerEvent["kind"],
     amount: Number(row.amount),
     currency: row.currency,

@@ -31,6 +31,7 @@ function toLedgerEvent(row: ContactLedgerRow): LedgerEvent {
   return {
     id: row.id,
     date: row.transaction_date,
+    created_time: row.created_time,
     kind: row.kind as LedgerEvent["kind"],
     amount: Number(row.amount),
     currency: row.currency,
@@ -75,10 +76,15 @@ function ShipmentBillingCardImpl({
     (txn.currency !== currency ||
       Math.abs(billedAmount - Number(liveTotal)) > 0.005);
 
+  const ledgerEvents = useMemo(
+    () => ledgerQ.data?.map(toLedgerEvent) ?? null,
+    [ledgerQ.data],
+  );
+
   const fifo = useMemo(() => {
-    if (!ledgerQ.data || !txn) return null;
-    return allocateFifo(ledgerQ.data.map(toLedgerEvent), currency);
-  }, [ledgerQ.data, txn, currency]);
+    if (!ledgerEvents || !txn) return null;
+    return allocateFifo(ledgerEvents, currency);
+  }, [ledgerEvents, txn, currency]);
 
   const thisAllocation = useMemo(() => {
     if (!fifo || !txn) return null;
@@ -104,7 +110,8 @@ function ShipmentBillingCardImpl({
             </div>
           )}
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Goods (line totals on this shipment) + freight.
+            Goods (line totals on this shipment). Freight is booked
+            separately as an expense at booking.
           </p>
         </div>
         <div>
@@ -115,7 +122,7 @@ function ShipmentBillingCardImpl({
             <Skeleton className="mt-1 h-6 w-48" />
           ) : txn ? (
             <div className="mt-1 text-sm">
-              <span className="font-medium text-emerald-400">✓ Billed</span>{" "}
+              <span className="font-medium text-emerald-700">✓ Billed</span>{" "}
               <span className="tabular-nums">
                 {formatMoney(billedAmount ?? 0)} {txn.currency}
               </span>{" "}

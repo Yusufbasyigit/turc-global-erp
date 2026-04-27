@@ -32,6 +32,12 @@ export async function listAccountsWithCustody(): Promise<AccountWithCustody[]> {
   const { data, error } = await supabase
     .from("accounts")
     .select(ACCOUNT_SELECT)
+    // Picker chokepoint: deactivated and soft-deleted accounts must not appear
+    // in any new-transaction or new-movement picker. Display-only joins
+    // (transaction list account names) resolve via FK regardless and are
+    // unaffected.
+    .is("deleted_at", null)
+    .eq("is_active", true)
     .order("account_name", { ascending: true });
   if (error) throw error;
   return (data ?? []) as unknown as AccountWithCustody[];

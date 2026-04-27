@@ -51,8 +51,8 @@ function LedgerRowImpl({
 
   let tone = "text-foreground";
   if (!skipped && signedAmount !== null) {
-    if (signedAmount > 0) tone = "text-rose-300";
-    else if (signedAmount < 0) tone = "text-emerald-300";
+    if (signedAmount > 0) tone = "text-rose-700";
+    else if (signedAmount < 0) tone = "text-emerald-700";
   }
 
   const rowAllocations = canExpand ? allocations : EMPTY_ALLOCATIONS;
@@ -107,7 +107,7 @@ function LedgerRowImpl({
         >
           {skipped ? (
             <span className="inline-flex items-center gap-1">
-              <AlertTriangle className="size-3 text-amber-400" />
+              <AlertTriangle className="size-3 text-amber-700" />
               {formatMoney(Number(row.amount))} {row.currency}
             </span>
           ) : signedAmount !== null ? (
@@ -147,7 +147,7 @@ function LedgerRowImpl({
                       {formatDate(a.payment_date)}
                     </span>{" "}
                     ·{" "}
-                    <span className="font-medium text-emerald-300">
+                    <span className="font-medium text-emerald-700">
                       {formatMoney(a.allocated_amount)} {displayCurrency}
                     </span>{" "}
                     <span className="text-muted-foreground">

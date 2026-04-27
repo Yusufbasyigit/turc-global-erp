@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useForm, Controller, useWatch } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
+import {
+  useForm,
+  Controller,
+  useWatch,
+  type FieldPath,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { cn } from "@/lib/utils";
 import {
   BALANCE_CURRENCIES,
@@ -53,6 +60,40 @@ const DEFAULT_VALUES: ContactFormValues = {
   tax_office: "",
   notes: "",
 };
+
+type StepId = "identity" | "contact" | "address" | "finance";
+
+const STEPS: {
+  id: StepId;
+  title: string;
+  description: string;
+  fields: FieldPath<ContactFormValues>[];
+}[] = [
+  {
+    id: "identity",
+    title: "Identity",
+    description: "Who this contact is.",
+    fields: ["company_name", "contact_person", "type"],
+  },
+  {
+    id: "contact",
+    title: "Contact",
+    description: "How to reach them.",
+    fields: ["phone", "email"],
+  },
+  {
+    id: "address",
+    title: "Address",
+    description: "Where they are based.",
+    fields: ["address", "city", "country_code"],
+  },
+  {
+    id: "finance",
+    title: "Finance & notes",
+    description: "Currency, tax details, and any free-form notes.",
+    fields: ["balance_currency", "tax_id", "tax_office", "notes"],
+  },
+];
 
 function toFormValues(c: ContactWithCountry): ContactFormValues {
   return {
@@ -89,6 +130,7 @@ export function ContactFormDialog({
 }) {
   const isEdit = Boolean(contactId);
   const qc = useQueryClient();
+  const [stepIndex, setStepIndex] = useState(0);
 
   const { data: countries = [] } = useQuery({
     queryKey: countryKeys.all,
@@ -118,6 +160,7 @@ export function ContactFormDialog({
       return;
     }
     if (hasResetRef.current) return;
+    setStepIndex(0);
     if (!isEdit) {
       form.reset(DEFAULT_VALUES);
       hasResetRef.current = true;
@@ -154,194 +197,332 @@ export function ContactFormDialog({
     else createMut.mutate(values);
   });
 
-  const watchType = useWatch({ control: form.control, name: "type" });
   const watchCountry = useWatch({
     control: form.control,
     name: "country_code",
   });
   const isTurkey = watchCountry === "TR";
-  const customerTaxLabel =
-    watchType === "customer" ? "Tax ID *" : "Tax ID";
+
+  const isLastStep = stepIndex === STEPS.length - 1;
+  const currentStep = STEPS[stepIndex];
+
+  const goNext = async () => {
+    const ok = await form.trigger(currentStep.fields);
+    if (!ok) return;
+    setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
+  };
+  const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
+  const goTo = async (target: number) => {
+    if (target === stepIndex) return;
+    if (target < stepIndex) {
+      setStepIndex(target);
+      return;
+    }
+    const ok = await form.trigger(currentStep.fields);
+    if (!ok) return;
+    setStepIndex(target);
+  };
+
+  // Always preventDefault on form submit (typically fired by Enter in an
+  // input). On non-final steps Enter advances; on the final step we require an
+  // explicit click on "Create contact" / "Save changes" so users can't trigger
+  // the mutation just by pressing Enter while filling fields.
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!isLastStep) void goNext();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+      <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit contact" : "New contact"}</DialogTitle>
           <DialogDescription>
-            {isEdit
-              ? "Update the contact's details."
-              : "Add a customer, supplier, logistics provider, or other party."}
+            Step {stepIndex + 1} of {STEPS.length} — {currentStep.title}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field
-              label="Company name *"
-              error={form.formState.errors.company_name?.message}
-              className="md:col-span-2"
-            >
-              <Input
-                placeholder="Acme Export Ltd."
-                {...form.register("company_name")}
-              />
-            </Field>
+        <Stepper
+          steps={STEPS}
+          current={stepIndex}
+          onPick={(i) => void goTo(i)}
+        />
 
-            <Field label="Contact person">
-              <Input
-                placeholder="Jane Doe"
-                {...form.register("contact_person")}
-              />
-            </Field>
+        <form onSubmit={handleFormSubmit} className="space-y-6">
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-sm font-medium">{currentStep.title}</h3>
+              <p className="text-xs text-muted-foreground">
+                {currentStep.description}
+              </p>
+            </div>
 
-            <Field
-              label="Type *"
-              error={form.formState.errors.type?.message}
-            >
-              <Controller
-                name="type"
-                control={form.control}
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CONTACT_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {CONTACT_TYPE_LABELS[t]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </Field>
+            {currentStep.id === "identity" ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field
+                  label="Company name *"
+                  error={form.formState.errors.company_name?.message}
+                  className="md:col-span-2"
+                >
+                  <Input
+                    autoFocus={!isEdit}
+                    placeholder="Acme Export Ltd."
+                    {...form.register("company_name")}
+                  />
+                </Field>
 
-            <Field
-              label="Phone"
-              error={form.formState.errors.phone?.message}
-            >
-              <Input placeholder="+90…" {...form.register("phone")} />
-            </Field>
+                <Field label="Contact person">
+                  <Input
+                    placeholder="Jane Doe"
+                    {...form.register("contact_person")}
+                  />
+                </Field>
 
-            <Field
-              label="Email"
-              error={form.formState.errors.email?.message}
-            >
-              <Input
-                type="email"
-                placeholder="contact@example.com"
-                {...form.register("email")}
-              />
-            </Field>
-
-            <Field label="Address" className="md:col-span-2">
-              <Input placeholder="Street, number" {...form.register("address")} />
-            </Field>
-
-            <Field label="City">
-              <Input placeholder="Istanbul" {...form.register("city")} />
-            </Field>
-
-            <Field
-              label="Country"
-              error={form.formState.errors.country_code?.message}
-            >
-              <Controller
-                name="country_code"
-                control={form.control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value || undefined}
-                    onValueChange={field.onChange}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countries.map((c) => (
-                        <SelectItem key={c.code} value={c.code}>
-                          <span className="mr-2">{c.flag_emoji ?? "🏳️"}</span>
-                          {c.name_en}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </Field>
-
-            <Field label="Balance currency">
-              <Controller
-                name="balance_currency"
-                control={form.control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value || undefined}
-                    onValueChange={field.onChange}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select currency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BALANCE_CURRENCIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </Field>
-
-            <Field
-              label={customerTaxLabel}
-              error={form.formState.errors.tax_id?.message}
-            >
-              <Input placeholder="1234567890" {...form.register("tax_id")} />
-            </Field>
-
-            {isTurkey ? (
-              <Field label="Vergi Dairesi (tax office)">
-                <Input
-                  placeholder="Kadıköy VD"
-                  {...form.register("tax_office")}
-                />
-              </Field>
+                <Field
+                  label="Type *"
+                  error={form.formState.errors.type?.message}
+                >
+                  <Controller
+                    name="type"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CONTACT_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {CONTACT_TYPE_LABELS[t]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </Field>
+              </div>
             ) : null}
 
-            <Field label="Notes" className="md:col-span-2">
-              <Textarea
-                rows={3}
-                placeholder="Static context about this contact (e.g. 'pays late')."
-                {...form.register("notes")}
-              />
-            </Field>
-          </div>
+            {currentStep.id === "contact" ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field
+                  label="Phone"
+                  error={form.formState.errors.phone?.message}
+                >
+                  <Input placeholder="+90…" {...form.register("phone")} />
+                </Field>
 
-          <DialogFooter className="gap-2 pt-2">
+                <Field
+                  label="Email"
+                  error={form.formState.errors.email?.message}
+                >
+                  <Input
+                    type="email"
+                    placeholder="contact@example.com"
+                    {...form.register("email")}
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {currentStep.id === "address" ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Address" className="md:col-span-2">
+                  <Input
+                    placeholder="Street, number"
+                    {...form.register("address")}
+                  />
+                </Field>
+
+                <Field label="City">
+                  <Input placeholder="Istanbul" {...form.register("city")} />
+                </Field>
+
+                <Field
+                  label="Country"
+                  error={form.formState.errors.country_code?.message}
+                >
+                  <Controller
+                    name="country_code"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Combobox
+                        items={countries.map((c) => ({
+                          value: c.code,
+                          label: `${c.flag_emoji ?? "🏳️"} ${c.name_en}`,
+                        }))}
+                        value={field.value}
+                        onChange={(v) => field.onChange(v ?? "")}
+                        placeholder="Select country"
+                        searchPlaceholder="Search country…"
+                        emptyMessage="No country found."
+                      />
+                    )}
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {currentStep.id === "finance" ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Balance currency">
+                  <Controller
+                    name="balance_currency"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || undefined}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BALANCE_CURRENCIES.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </Field>
+
+                <Field
+                  label="Tax ID"
+                  error={form.formState.errors.tax_id?.message}
+                >
+                  <Input
+                    placeholder="1234567890"
+                    {...form.register("tax_id")}
+                  />
+                </Field>
+
+                {isTurkey ? (
+                  <Field
+                    label="Vergi Dairesi (tax office)"
+                    className="md:col-span-2"
+                  >
+                    <Input
+                      placeholder="Kadıköy VD"
+                      {...form.register("tax_office")}
+                    />
+                  </Field>
+                ) : null}
+
+                <Field label="Notes" className="md:col-span-2">
+                  <Textarea
+                    rows={4}
+                    placeholder="Static context about this contact (e.g. 'pays late')."
+                    {...form.register("notes")}
+                  />
+                </Field>
+              </div>
+            ) : null}
+          </section>
+
+          <DialogFooter className="flex-row items-center justify-between gap-2 pt-2 sm:justify-between">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
+              variant="ghost"
+              onClick={goBack}
+              disabled={stepIndex === 0 || submitting}
             >
-              Cancel
+              <ArrowLeft className="mr-2 size-4" />
+              Back
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting
-                ? "Saving…"
-                : isEdit
-                  ? "Save changes"
-                  : "Create contact"}
-            </Button>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+
+              {isLastStep ? (
+                <Button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => void onSubmit()}
+                >
+                  {submitting
+                    ? "Saving…"
+                    : isEdit
+                      ? "Save changes"
+                      : "Create contact"}
+                </Button>
+              ) : (
+                <Button type="button" onClick={() => void goNext()}>
+                  Next
+                  <ArrowRight className="ml-2 size-4" />
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Stepper({
+  steps,
+  current,
+  onPick,
+}: {
+  steps: { id: StepId; title: string }[];
+  current: number;
+  onPick: (i: number) => void;
+}) {
+  return (
+    <ol className="flex flex-wrap items-center gap-1 border-y py-3 text-xs">
+      {steps.map((s, i) => {
+        const state =
+          i < current ? "done" : i === current ? "active" : "pending";
+        return (
+          <li key={s.id} className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onPick(i)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors",
+                state === "active" &&
+                  "border-primary bg-primary text-primary-foreground",
+                state === "done" &&
+                  "border-border bg-muted text-foreground hover:bg-muted/80",
+                state === "pending" &&
+                  "border-border text-muted-foreground hover:bg-muted/50",
+              )}
+              aria-current={state === "active" ? "step" : undefined}
+            >
+              <span
+                className={cn(
+                  "flex size-4 items-center justify-center rounded-full text-[10px] font-medium",
+                  state === "active" && "bg-primary-foreground/20",
+                  state === "done" && "bg-foreground/10",
+                  state === "pending" && "bg-muted",
+                )}
+              >
+                {state === "done" ? (
+                  <Check className="size-3" />
+                ) : (
+                  <span>{i + 1}</span>
+                )}
+              </span>
+              <span>{s.title}</span>
+            </button>
+            {i < steps.length - 1 ? (
+              <span className="text-muted-foreground/40">·</span>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

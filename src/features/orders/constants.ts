@@ -12,19 +12,19 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 
 export const ORDER_STATUS_BADGE_CLASSES: Record<OrderStatus, string> = {
   inquiry:
-    "border-transparent bg-zinc-500/15 text-zinc-300 hover:bg-zinc-500/20",
+    "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25",
   quoted:
-    "border-transparent bg-sky-500/15 text-sky-300 hover:bg-sky-500/20",
+    "border-transparent bg-sky-500/15 text-sky-800 hover:bg-sky-500/25",
   accepted:
-    "border-transparent bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/20",
+    "border-transparent bg-indigo-500/15 text-indigo-800 hover:bg-indigo-500/25",
   in_production:
-    "border-transparent bg-amber-500/15 text-amber-300 hover:bg-amber-500/20",
+    "border-transparent bg-amber-500/20 text-amber-800 hover:bg-amber-500/30",
   shipped:
-    "border-transparent bg-violet-500/15 text-violet-300 hover:bg-violet-500/20",
+    "border-transparent bg-violet-500/15 text-violet-800 hover:bg-violet-500/25",
   delivered:
-    "border-transparent bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20",
+    "border-transparent bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25",
   cancelled:
-    "border-transparent bg-rose-500/15 text-rose-300 hover:bg-rose-500/20",
+    "border-transparent bg-rose-500/15 text-rose-800 hover:bg-rose-500/25",
 };
 
 // Terminal statuses — cannot advance, cannot cancel.

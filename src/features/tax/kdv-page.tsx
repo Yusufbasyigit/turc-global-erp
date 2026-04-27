@@ -211,8 +211,11 @@ function KdvRowView({ month }: { month: KdvMonth }) {
     ? `/transactions?action=edit&id=${month.linked_payment_id}`
     : null;
 
+  const hasActivity = month.collected_vat_try > 0 || month.paid_vat_try > 0;
+  const isQuiet = !hasActivity && month.status !== "filed";
+
   return (
-    <tr className="border-t">
+    <tr className={cn("border-t", isQuiet && "text-muted-foreground")}>
       <td className="px-3 py-2 font-medium">
         {formatPeriodLabel(month.period)}
       </td>
@@ -225,36 +228,45 @@ function KdvRowView({ month }: { month: KdvMonth }) {
       <td
         className={cn(
           "px-3 py-2 text-right tabular-nums",
-          month.net_try > 0 && "text-amber-300",
-          month.net_try < 0 && "text-emerald-300",
+          month.net_try > 0 && "text-amber-700",
+          month.net_try < 0 && "text-emerald-700",
         )}
       >
         {netLabel(month.net_try)}
       </td>
       <td className="px-3 py-2">
         {month.status === "filed" ? (
-          <Badge className="border-transparent bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20">
+          <Badge className="border-transparent bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25">
             Filed
             {month.linked_payment_reference
               ? ` · ${month.linked_payment_reference}`
               : ""}
           </Badge>
+        ) : isQuiet ? (
+          <Badge
+            variant="outline"
+            className="border-border/60 text-muted-foreground"
+          >
+            No activity
+          </Badge>
         ) : (
-          <Badge className="border-transparent bg-amber-500/15 text-amber-300 hover:bg-amber-500/20">
+          <Badge className="border-transparent bg-amber-500/20 text-amber-800 hover:bg-amber-500/30">
             Unfiled
           </Badge>
         )}
       </td>
       <td className="px-3 py-2 text-right">
         {viewHref ? (
-          <Button asChild variant="ghost" size="sm">
+          <Button asChild variant="ghost">
             <Link href={viewHref}>
-              <FileText className="mr-1 size-3.5" />
+              <FileText className="mr-1.5 size-4" />
               View payment
             </Link>
           </Button>
+        ) : isQuiet ? (
+          <span className="text-xs text-muted-foreground/70">—</span>
         ) : (
-          <Button asChild variant="outline" size="sm">
+          <Button asChild>
             <Link href={recordHref}>Record payment</Link>
           </Button>
         )}

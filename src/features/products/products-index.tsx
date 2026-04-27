@@ -231,17 +231,6 @@ export function ProductsIndex() {
         )
       ) : null}
 
-      {hasAnyProducts ? (
-        <Button
-          size="icon"
-          onClick={openCreate}
-          className="fixed bottom-6 right-6 size-14 rounded-full shadow-lg"
-          aria-label="Add product"
-        >
-          <Plus className="size-6" />
-        </Button>
-      ) : null}
-
       <ProductFormDialog
         open={formOpen}
         onOpenChange={(o) => {

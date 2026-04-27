@@ -4,13 +4,17 @@ import {
   formatProformaMoney,
   formatProformaQty,
 } from "@/lib/proforma/proforma-money";
-import type { StatementData, StatementLine } from "./shipment-statement-pdf-types";
+import { pdfText } from "./text-encoding";
+import type {
+  StatementData,
+  StatementLine,
+} from "./shipment-statement-pdf-types";
 
 function statusCell(line: StatementLine) {
   if (line.status === "rolled_over") {
     return {
       label: line.rolledOverToName
-        ? `Facturé sur ${line.rolledOverToName}`
+        ? `Facturé sur ${pdfText(line.rolledOverToName)}`
         : "Facturé ailleurs",
       style: statementStyles.statusRolled,
     };
@@ -31,33 +35,36 @@ function LineRow({
   currency: string;
 }) {
   const status = statusCell(line);
-  const isRolled = line.status === "rolled_over";
   return (
     <View
       style={[statementStyles.tRow, zebra ? statementStyles.tRowZebra : {}]}
     >
-      <View style={[statementStyles.td, statementStyles.colN]}>
+      <View style={[statementStyles.tdMono, statementStyles.colN]}>
         <Text>{line.lineNumber}</Text>
       </View>
       <View style={[statementStyles.td, statementStyles.colProduct]}>
-        <Text style={{ fontFamily: "Helvetica-Bold" }}>{line.productName}</Text>
+        <Text style={statementStyles.productName}>
+          {pdfText(line.productName)}
+        </Text>
         {line.unit ? (
-          <Text style={statementStyles.muted}>{line.unit}</Text>
+          <Text style={statementStyles.productMeta}>
+            {pdfText(line.unit)}
+          </Text>
         ) : null}
       </View>
-      <View style={[statementStyles.td, statementStyles.colQty]}>
+      <View style={[statementStyles.tdMono, statementStyles.colQty]}>
         <Text>{formatProformaQty(line.quantity)}</Text>
       </View>
-      <View style={[statementStyles.td, statementStyles.colUnitPrice]}>
+      <View style={[statementStyles.tdMono, statementStyles.colUnitPrice]}>
         <Text>
-          {isRolled || line.unitPrice === null
+          {line.unitPrice === null
             ? "—"
             : formatProformaMoney(line.unitPrice, currency)}
         </Text>
       </View>
-      <View style={[statementStyles.td, statementStyles.colLineTotal]}>
-        <Text>
-          {isRolled || line.lineTotal === null
+      <View style={[statementStyles.tdMono, statementStyles.colLineTotal]}>
+        <Text style={{ fontFamily: "Courier-Bold" }}>
+          {line.lineTotal === null
             ? "—"
             : formatProformaMoney(line.lineTotal, currency)}
         </Text>
@@ -77,25 +84,39 @@ export function ShipmentStatementPdfLineTable({
   const currency = data.shipment.invoiceCurrency;
   const hasFreight = data.shipment.freightCost > 0;
   const freightLabel = data.shipment.containerType
-    ? `Fret maritime (${data.shipment.containerType})`
+    ? `Fret maritime (${pdfText(data.shipment.containerType)})`
     : "Fret maritime";
 
   return (
-    <View style={statementStyles.table}>
+    <View style={[statementStyles.sectionGap, statementStyles.table]}>
+      <View style={statementStyles.sectionHead}>
+        <Text style={statementStyles.sectionHeadText}>
+          MARCHANDISE · GOODS
+        </Text>
+      </View>
+
       <View style={statementStyles.tHead}>
-        <Text style={[statementStyles.th, statementStyles.colN]}>N°</Text>
-        <Text style={[statementStyles.th, statementStyles.colProduct]}>
-          Produit
+        <Text style={[statementStyles.tHeadCell, statementStyles.colN]}>
+          N°
         </Text>
-        <Text style={[statementStyles.th, statementStyles.colQty]}>Qté</Text>
-        <Text style={[statementStyles.th, statementStyles.colUnitPrice]}>
-          Prix unit.
+        <Text style={[statementStyles.tHeadCell, statementStyles.colProduct]}>
+          PRODUIT
         </Text>
-        <Text style={[statementStyles.th, statementStyles.colLineTotal]}>
-          Total
+        <Text style={[statementStyles.tHeadCell, statementStyles.colQty]}>
+          QTÉ
         </Text>
-        <Text style={[statementStyles.th, statementStyles.colStatus]}>
-          Statut
+        <Text
+          style={[statementStyles.tHeadCell, statementStyles.colUnitPrice]}
+        >
+          PRIX UNIT.
+        </Text>
+        <Text
+          style={[statementStyles.tHeadCell, statementStyles.colLineTotal]}
+        >
+          TOTAL
+        </Text>
+        <Text style={[statementStyles.tHeadCell, statementStyles.colStatus]}>
+          STATUT
         </Text>
       </View>
       {data.lines.map((line, i) => (
@@ -109,21 +130,21 @@ export function ShipmentStatementPdfLineTable({
 
       <View style={statementStyles.totalsBlock}>
         <View style={statementStyles.totalsRow}>
-          <Text style={statementStyles.totalsLabel}>Sous-total:</Text>
+          <Text style={statementStyles.totalsLabel}>Sous-total marchandise</Text>
           <Text style={statementStyles.totalsValue}>
             {formatProformaMoney(data.goodsSubtotal, currency)}
           </Text>
         </View>
         {hasFreight ? (
           <View style={statementStyles.totalsRow}>
-            <Text style={statementStyles.totalsLabel}>{freightLabel}:</Text>
+            <Text style={statementStyles.totalsLabel}>{freightLabel}</Text>
             <Text style={statementStyles.totalsValue}>
               {formatProformaMoney(data.shipment.freightCost, currency)}
             </Text>
           </View>
         ) : null}
-        <View style={statementStyles.totalsRow}>
-          <Text style={statementStyles.grandTotalLabel}>Grand Total:</Text>
+        <View style={statementStyles.grandTotalRow}>
+          <Text style={statementStyles.grandTotalLabel}>GRAND TOTAL</Text>
           <Text style={statementStyles.grandTotalValue}>
             {formatProformaMoney(data.grandTotal, currency)}
           </Text>

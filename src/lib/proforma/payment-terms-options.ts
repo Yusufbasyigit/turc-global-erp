@@ -1,8 +1,8 @@
 export const PAYMENT_TERMS_OPTIONS: readonly string[] = [
-  "Paiement comptant",
-  "Paiement à 30 jours",
-  "50% avance, 50% à la livraison",
-  "100% avance",
+  "Cash payment",
+  "Net 30 days",
+  "50% advance, 50% on delivery",
+  "100% advance",
 ];
 
-export const DEFAULT_PAYMENT_TERMS = "Paiement comptant";
+export const DEFAULT_PAYMENT_TERMS = "Cash payment";

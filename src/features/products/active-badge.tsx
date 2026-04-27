@@ -15,8 +15,8 @@ export function ActiveBadge({
       className={cn(
         "border-transparent",
         on
-          ? "bg-emerald-500/15 text-emerald-300"
-          : "bg-zinc-500/15 text-zinc-400",
+          ? "bg-emerald-500/15 text-emerald-800"
+          : "bg-zinc-500/15 text-zinc-600",
         className,
       )}
     >

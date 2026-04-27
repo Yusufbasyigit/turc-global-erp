@@ -11,9 +11,11 @@ import {
   ArrowLeftRight,
   Wallet,
   HandCoins,
-  Receipt,
   TrendingUp,
+  LineChart,
+  Building2,
   Settings,
+  PanelLeftClose,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -28,6 +30,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
 
@@ -48,10 +51,11 @@ const groups: NavGroup[] = [
     label: "Finance",
     items: [
       { title: "Treasury", href: "/treasury", icon: TrendingUp },
+      { title: "Real Estate", href: "/real-estate", icon: Building2 },
+      { title: "Profit & Loss", href: "/profit-loss", icon: LineChart },
       { title: "Transactions", href: "/transactions", icon: ArrowLeftRight },
       { title: "Accounts", href: "/accounts", icon: Wallet },
       { title: "Partners", href: "/partners", icon: HandCoins },
-      { title: "Tax", href: "/tax", icon: Receipt },
     ],
   },
 ];
@@ -64,8 +68,9 @@ const settingsItem: NavItem = {
 
 export function AppSidebar({ userEmail }: { userEmail: string }) {
   const pathname = usePathname();
+  const { toggleSidebar } = useSidebar();
   const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
+    pathname === href || pathname?.startsWith(`${href}/`);
 
   return (
     <Sidebar collapsible="icon">
@@ -77,13 +82,24 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
               className="hover:bg-transparent active:bg-transparent"
             >
               <Image
-                src="/tg-logo-white.png"
+                src="/logo.png"
                 alt="Turc Global"
                 width={800}
-                height={168}
+                height={250}
                 className="h-8 w-auto object-contain"
                 priority
               />
+              <span className="flex-1" />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleSidebar();
+                }}
+                className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:hidden"
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

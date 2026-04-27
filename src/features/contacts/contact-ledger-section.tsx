@@ -24,6 +24,7 @@ function toLedgerEvent(row: ContactLedgerRow): LedgerEvent {
   return {
     id: row.id,
     date: row.transaction_date,
+    created_time: row.created_time,
     kind: row.kind as LedgerEvent["kind"],
     amount: Number(row.amount),
     currency: row.currency,

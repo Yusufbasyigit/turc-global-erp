@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useForm,
   Controller,
@@ -236,13 +236,11 @@ export function ProductFormDialog({
   const isEdit = Boolean(productId);
   const qc = useQueryClient();
 
-  const stableNewIdRef = useRef<string | null>(null);
-  if (stableNewIdRef.current === null) {
-    stableNewIdRef.current = crypto.randomUUID();
-  }
-  const effectiveProductId = isEdit
-    ? (productId as string)
-    : stableNewIdRef.current;
+  // Lazy-init UUID for new products so storage uploads can use it as a path
+  // prefix before the row is inserted. Reset on close to give each "new"
+  // session a fresh ID.
+  const [stableNewId, setStableNewId] = useState(() => crypto.randomUUID());
+  const effectiveProductId = isEdit ? (productId as string) : stableNewId;
 
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
@@ -255,7 +253,7 @@ export function ProductFormDialog({
       setPendingPreview(null);
       setRequestedRemoval(false);
       setStepIndex(0);
-      if (!isEdit) stableNewIdRef.current = null;
+      if (!isEdit) setStableNewId(crypto.randomUUID());
     }
     onOpenChange(next);
   };
@@ -386,13 +384,13 @@ export function ProductFormDialog({
     saveMut.mutate(values);
   });
 
+  // Always preventDefault on form submit (typically fired by Enter in an
+  // input). On non-final steps Enter advances; on the final step we require an
+  // explicit click on the create/save button so users can't trigger the
+  // mutation just by pressing Enter while filling fields.
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (!isLastStep) {
-      e.preventDefault();
-      void goNext();
-      return;
-    }
-    void onSubmit(e);
+    e.preventDefault();
+    if (!isLastStep) void goNext();
   };
 
   const watchPackaging = useWatch({
@@ -921,7 +919,7 @@ export function ProductFormDialog({
                                 {explicitCbm.toFixed(4)} m³)
                               </span>
                             ) : (
-                              <span className="ml-1 text-emerald-300">
+                              <span className="ml-1 text-emerald-700">
                                 — used because CBM per unit is blank
                               </span>
                             )}
@@ -957,7 +955,11 @@ export function ProductFormDialog({
               </Button>
 
               {isLastStep ? (
-                <Button type="submit" disabled={submitting}>
+                <Button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => void onSubmit()}
+                >
                   {submitting
                     ? "Saving…"
                     : isEdit

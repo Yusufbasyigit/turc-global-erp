@@ -7,6 +7,11 @@ export type LedgerEventKind =
 export type LedgerEvent = {
   id: string;
   date: string;
+  // created_time is the secondary sort key when two events share a
+  // transaction_date. Falls back to id-lex if absent. Without it,
+  // same-day billings sort by random UUID, which can mis-attribute
+  // payments to the wrong bill.
+  created_time?: string | null;
   kind: LedgerEventKind;
   amount: number;
   currency: string;
@@ -32,7 +37,8 @@ export type PaymentAllocationDetail = {
   allocated_amount: number;
 };
 
-export type SkippedEvent = { event: LedgerEvent; reason: string };
+export type SkippedReason = "no_fx" | "missing_shipment";
+export type SkippedEvent = { event: LedgerEvent; reason: SkippedReason };
 
 export type LedgerAllocationResult = {
   shipment_allocations: ShipmentAllocation[];
@@ -92,6 +98,9 @@ export function allocateFifo(
 ): LedgerAllocationResult {
   const sorted = [...events].sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    const at = a.created_time ?? "";
+    const bt = b.created_time ?? "";
+    if (at !== bt) return at < bt ? -1 : 1;
     if (a.id !== b.id) return a.id < b.id ? -1 : 1;
     return 0;
   });
@@ -105,19 +114,13 @@ export function allocateFifo(
   for (const event of sorted) {
     const amt = effectiveAmount(event, displayCurrency);
     if (amt === null) {
-      skipped.push({
-        event,
-        reason: "currency mismatch, no frozen conversion available",
-      });
+      skipped.push({ event, reason: "no_fx" });
       continue;
     }
 
     if (event.kind === "shipment_billing") {
       if (!event.related_shipment_id) {
-        skipped.push({
-          event,
-          reason: "shipment_billing event has no related_shipment_id",
-        });
+        skipped.push({ event, reason: "missing_shipment" });
         continue;
       }
       billings.push({ event, billed: amt, paid: 0 });
@@ -161,6 +164,34 @@ export function allocateFifo(
     }
 
     if (event.kind === "adjustment") {
+      // An adjustment with `related_shipment_id` set is a credit memo
+      // applied to that specific bill — model it like a payment that
+      // can only land on its named shipment. The DB CHECK constraint
+      // forbids negative amounts, so adjustments are always credits
+      // (they reduce outstanding). Standalone adjustments (no
+      // related_shipment_id) stay in their own bucket.
+      if (event.related_shipment_id) {
+        const slot = billings.find(
+          (s) => s.event.related_shipment_id === event.related_shipment_id,
+        );
+        if (slot) {
+          const capacity = slot.billed - slot.paid;
+          const take = Math.min(Math.max(0, capacity), amt);
+          slot.paid += take;
+          paymentAllocations.push({
+            payment_event_id: event.id,
+            payment_date: event.date,
+            shipment_billing_id: slot.event.id,
+            related_shipment_id: slot.event.related_shipment_id!,
+            allocated_amount: take,
+          });
+          const overflow = amt - take;
+          if (overflow > 0) unallocatedCredit += overflow;
+          continue;
+        }
+        // related_shipment_id points at a shipment we haven't seen
+        // billed yet — fall through to standalone.
+      }
       adjustments.push(event);
       continue;
     }

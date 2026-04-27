@@ -80,7 +80,7 @@ export function ProformaDetailsForm({
   const qc = useQueryClient();
   const defaultRemark = useMemo(
     () =>
-      `Cette offre est établie en ${order.order_currency}. TVA : 0% (export).`,
+      `This offer is denominated in ${order.order_currency}. VAT: 0% (export).`,
     [order.order_currency],
   );
 
@@ -184,25 +184,25 @@ export function ProformaDetailsForm({
         <div className="text-xs font-medium text-muted-foreground">
           Notes / Conditions
         </div>
-        <Field label="Remarque">
+        <Field label="Remark">
           <Textarea rows={2} {...form.register("proforma_notes_remark")} />
         </Field>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Field label="Validité de l'offre">
+          <Field label="Offer validity">
             <Input {...form.register("proforma_notes_validity")} />
           </Field>
-          <Field label="Lieu de livraison">
+          <Field label="Delivery location">
             <Input
               {...form.register("proforma_notes_delivery_location")}
             />
           </Field>
-          <Field label="Temps de production">
+          <Field label="Production time">
             <Input {...form.register("proforma_notes_production_time")} />
           </Field>
-          <Field label="Tolérance de longueur">
+          <Field label="Length tolerance">
             <Input {...form.register("proforma_notes_length_tolerance")} />
           </Field>
-          <Field label="Poids total" className="md:col-span-2">
+          <Field label="Total weight" className="md:col-span-2">
             <Input {...form.register("proforma_notes_total_weight")} />
           </Field>
         </div>

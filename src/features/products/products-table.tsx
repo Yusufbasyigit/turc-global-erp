@@ -141,7 +141,10 @@ export function ProductsTable({
                         <MoreHorizontal className="size-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent
+                      align="end"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <DropdownMenuItem onSelect={() => onEdit(p.product_id)}>
                         <Pencil className="mr-2 size-4" />
                         Edit

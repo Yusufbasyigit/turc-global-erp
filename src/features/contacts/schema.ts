@@ -3,38 +3,28 @@ import { BALANCE_CURRENCIES, CONTACT_TYPES } from "@/lib/supabase/types";
 
 const trimmed = () => z.string().trim();
 
-export const contactFormSchema = z
-  .object({
-    company_name: trimmed().min(1, "Company name is required"),
-    contact_person: trimmed().optional(),
-    type: z.enum(CONTACT_TYPES, { message: "Type is required" }),
-    phone: trimmed().optional(),
-    email: trimmed()
-      .optional()
-      .refine(
-        (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
-        "Invalid email",
-      ),
-    address: trimmed().optional(),
-    city: trimmed().optional(),
-    country_code: trimmed().optional(),
-    balance_currency: z
-      .enum(BALANCE_CURRENCIES)
-      .optional()
-      .or(z.literal("").transform(() => undefined)),
-    tax_id: trimmed().optional(),
-    tax_office: trimmed().optional(),
-    notes: z.string().optional(),
-  })
-  .superRefine((val, ctx) => {
-    if (val.type === "customer" && !val.tax_id?.trim()) {
-      ctx.addIssue({
-        path: ["tax_id"],
-        code: z.ZodIssueCode.custom,
-        message: "Tax ID is required for customers",
-      });
-    }
-  });
+export const contactFormSchema = z.object({
+  company_name: trimmed().min(1, "Company name is required"),
+  contact_person: trimmed().optional(),
+  type: z.enum(CONTACT_TYPES, { message: "Type is required" }),
+  phone: trimmed().optional(),
+  email: trimmed()
+    .optional()
+    .refine(
+      (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+      "Invalid email",
+    ),
+  address: trimmed().optional(),
+  city: trimmed().optional(),
+  country_code: trimmed().optional(),
+  balance_currency: z
+    .enum(BALANCE_CURRENCIES)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  tax_id: trimmed().optional(),
+  tax_office: trimmed().optional(),
+  notes: z.string().optional(),
+});
 
 export type ContactFormValues = z.input<typeof contactFormSchema>;
 export type ContactFormOutput = z.output<typeof contactFormSchema>;

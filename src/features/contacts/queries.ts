@@ -9,6 +9,7 @@ import type {
 export const contactKeys = {
   all: ["contacts"] as const,
   list: () => [...contactKeys.all, "list"] as const,
+  archive: () => [...contactKeys.all, "archive"] as const,
   detail: (id: string) => [...contactKeys.all, "detail", id] as const,
   notes: (id: string) => [...contactKeys.all, "notes", id] as const,
 };
@@ -24,6 +25,18 @@ export async function listContacts(): Promise<ContactWithCountry[]> {
     .select("*, countries(code, name_en, flag_emoji)")
     .is("deleted_at", null)
     .order("company_name", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as ContactWithCountry[];
+}
+
+export async function listDeletedContacts(): Promise<ContactWithCountry[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("contacts")
+    .select("*, countries(code, name_en, flag_emoji)")
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
 
   if (error) throw error;
   return (data ?? []) as ContactWithCountry[];

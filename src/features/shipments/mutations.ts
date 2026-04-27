@@ -11,10 +11,10 @@ import type {
 import { NEXT_SHIPMENT_STATUS } from "./constants";
 import {
   assertShipmentEditable,
-  refreshBillingForShipmentTransition,
-  refreshShipmentBilling,
-  restoreBillingAmount,
-  writeShipmentBilling,
+  refreshAccrualsForShipmentTransition,
+  refreshShipmentAccruals,
+  restoreAccrualSnapshots,
+  writeShipmentAccruals,
 } from "./billing";
 import {
   deleteShipmentDocument,
@@ -119,7 +119,7 @@ export async function updateShipment(input: {
   if (error) throw error;
 
   if (freightChanging) {
-    await refreshShipmentBilling(input.id);
+    await refreshShipmentAccruals(input.id);
   }
 
   return data;
@@ -201,15 +201,15 @@ export async function advanceShipmentStatus(input: {
     }
     const shipment = await setShipmentStatus(current.id, "booked", userId, now);
     try {
-      const { transaction, total } = await writeShipmentBilling({
+      const result = await writeShipmentAccruals({
         shipmentId: current.id,
         userId,
         now,
       });
       return {
         shipment,
-        billingAmount: total,
-        billingCurrency: transaction.currency,
+        billingAmount: result.sales,
+        billingCurrency: result.billing.currency,
       };
     } catch (err) {
       try {
@@ -248,7 +248,7 @@ export async function advanceShipmentStatus(input: {
       (CASCADE_FROM_STATUSES as readonly string[]).includes(o.status),
     );
 
-    const billingRefresh = await refreshBillingForShipmentTransition({
+    const accrualRefresh = await refreshAccrualsForShipmentTransition({
       shipmentId: current.id,
       userId,
       now,
@@ -256,18 +256,25 @@ export async function advanceShipmentStatus(input: {
 
     const updatedOrders: Array<{ id: string; previousStatus: string }> = [];
     try {
-      for (const o of toCascade) {
-        const { error } = await supabase
-          .from("orders")
-          .update({
-            status: "shipped",
-            edited_by: userId,
-            edited_time: now,
-          })
-          .eq("id", o.id);
-        if (error) throw error;
-        updatedOrders.push({ id: o.id, previousStatus: o.status });
+      const results = await Promise.allSettled(
+        toCascade.map(async (o) => {
+          const { error } = await supabase
+            .from("orders")
+            .update({
+              status: "shipped",
+              edited_by: userId,
+              edited_time: now,
+            })
+            .eq("id", o.id);
+          if (error) throw error;
+          return { id: o.id, previousStatus: o.status };
+        }),
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled") updatedOrders.push(r.value);
       }
+      const firstFailure = results.find((r) => r.status === "rejected");
+      if (firstFailure) throw (firstFailure as PromiseRejectedResult).reason;
 
       const shipment = await setShipmentStatus(
         current.id,
@@ -280,22 +287,16 @@ export async function advanceShipmentStatus(input: {
         cascadedOrderCount: updatedOrders.length,
       };
     } catch (err) {
-      for (const u of updatedOrders) {
-        try {
-          await supabase
+      await Promise.allSettled(
+        updatedOrders.map((u) =>
+          supabase
             .from("orders")
             .update({ status: u.previousStatus })
-            .eq("id", u.id);
-        } catch {
-          /* best-effort rollback */
-        }
-      }
+            .eq("id", u.id),
+        ),
+      );
       try {
-        await restoreBillingAmount({
-          transactionId: billingRefresh.transactionId,
-          amount: billingRefresh.previousAmount,
-          edited: billingRefresh.previousEdited,
-        });
+        await restoreAccrualSnapshots(accrualRefresh.snapshots);
       } catch {
         /* best-effort rollback */
       }

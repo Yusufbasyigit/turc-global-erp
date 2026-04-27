@@ -1,7 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search, Users, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Users,
+  ChevronDown,
+  ChevronRight,
+  Archive,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,16 +27,20 @@ import {
   type ContactWithCountry,
 } from "@/lib/supabase/types";
 import { CONTACT_TYPE_LABELS } from "@/lib/constants";
-import { contactKeys, listContacts } from "./queries";
+import { contactKeys, listContacts, listDeletedContacts } from "./queries";
 import { ContactsTable } from "./contacts-table";
 import { ContactsCardList } from "./contacts-card-list";
 import { ContactFormDialog } from "./contact-form-dialog";
 import { DeleteContactDialog } from "./delete-contact-dialog";
+import { ArchivedContactsTable } from "./archived-contacts-table";
+import { RestoreContactDialog } from "./restore-contact-dialog";
 
 type TypeFilter = "all" | ContactType;
+type View = "active" | "archive";
 
 export function ContactsIndex() {
   const isMobile = useIsMobile();
+  const [view, setView] = useState<View>("active");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [groupByCountry, setGroupByCountry] = useState(false);
@@ -43,9 +54,26 @@ export function ContactsIndex() {
     name: string;
   } | null>(null);
 
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const [restoreTarget, setRestoreTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
   const { data: contacts, isLoading, isError, error } = useQuery({
     queryKey: contactKeys.list(),
     queryFn: listContacts,
+  });
+
+  const {
+    data: deletedContacts,
+    isLoading: isLoadingArchive,
+    isError: isErrorArchive,
+    error: archiveError,
+  } = useQuery({
+    queryKey: contactKeys.archive(),
+    queryFn: listDeletedContacts,
+    enabled: view === "archive",
   });
 
   const filtered = useMemo(() => {
@@ -75,9 +103,15 @@ export function ContactsIndex() {
     setDeleteTarget({ id, name });
     setDeleteOpen(true);
   };
+  const openRestore = (id: string, name: string) => {
+    setRestoreTarget({ id, name });
+    setRestoreOpen(true);
+  };
 
   const hasAnyContacts = (contacts?.length ?? 0) > 0;
   const hasFilteredContacts = filtered.length > 0;
+  const archiveCount = deletedContacts?.length ?? 0;
+  const hasArchive = archiveCount > 0;
 
   return (
     <div className="space-y-6">
@@ -88,102 +122,139 @@ export function ContactsIndex() {
             Customers, suppliers, logistics providers, and other parties.
           </p>
         </div>
-        {hasAnyContacts ? (
-          <Button onClick={openCreate} className="md:self-end">
-            <Plus className="mr-2 size-4" />
-            Add contact
+        <div className="flex items-center gap-2 md:self-end">
+          <Button
+            variant={view === "archive" ? "default" : "outline"}
+            onClick={() => setView((v) => (v === "active" ? "archive" : "active"))}
+          >
+            <Archive className="mr-2 size-4" />
+            {view === "archive" ? "Back to contacts" : "Archive"}
           </Button>
-        ) : null}
+          {hasAnyContacts && view === "active" ? (
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 size-4" />
+              Add contact
+            </Button>
+          ) : null}
+        </div>
       </header>
 
-      {hasAnyContacts ? (
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <div className="relative flex-1 md:max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search company, person, email, phone…"
-              className="pl-9"
+      {view === "active" ? (
+        <>
+          {hasAnyContacts ? (
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <div className="relative flex-1 md:max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search company, person, email, phone…"
+                  className="pl-9"
+                />
+              </div>
+              <Select
+                value={typeFilter}
+                onValueChange={(v) => setTypeFilter(v as TypeFilter)}
+              >
+                <SelectTrigger className="md:w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  {CONTACT_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {CONTACT_TYPE_LABELS[t]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant={groupByCountry ? "default" : "outline"}
+                onClick={() => setGroupByCountry((v) => !v)}
+                className="md:w-auto"
+              >
+                Group by country
+              </Button>
+            </div>
+          ) : null}
+
+          {isLoading ? <ListSkeleton /> : null}
+
+          {isError ? (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              Failed to load contacts: {(error as Error).message}
+            </div>
+          ) : null}
+
+          {!isLoading && !isError && !hasAnyContacts ? (
+            <EmptyState onAdd={openCreate} />
+          ) : null}
+
+          {!isLoading && !isError && hasAnyContacts && !hasFilteredContacts ? (
+            <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+              No contacts match the current filters.
+            </div>
+          ) : null}
+
+          {!isLoading && hasFilteredContacts ? (
+            groupByCountry ? (
+              <GroupedView
+                contacts={filtered}
+                isMobile={isMobile}
+                onEdit={openEdit}
+                onDelete={openDelete}
+              />
+            ) : isMobile ? (
+              <ContactsCardList
+                contacts={filtered}
+                onEdit={openEdit}
+                onDelete={openDelete}
+              />
+            ) : (
+              <ContactsTable
+                contacts={filtered}
+                onEdit={openEdit}
+                onDelete={openDelete}
+              />
+            )
+          ) : null}
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Deleted contacts. Restoring brings a contact back to your active
+            list with all its data intact.
+          </p>
+
+          {isLoadingArchive ? <ListSkeleton /> : null}
+
+          {isErrorArchive ? (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              Failed to load archive: {(archiveError as Error).message}
+            </div>
+          ) : null}
+
+          {!isLoadingArchive && !isErrorArchive && !hasArchive ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-card/50 p-12 text-center">
+              <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
+                <Archive className="size-6 text-muted-foreground" />
+              </div>
+              <h2 className="text-lg font-medium">Archive is empty</h2>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                Deleted contacts will appear here and can be restored at any
+                time.
+              </p>
+            </div>
+          ) : null}
+
+          {!isLoadingArchive && hasArchive ? (
+            <ArchivedContactsTable
+              contacts={deletedContacts ?? []}
+              onRestore={openRestore}
             />
-          </div>
-          <Select
-            value={typeFilter}
-            onValueChange={(v) => setTypeFilter(v as TypeFilter)}
-          >
-            <SelectTrigger className="md:w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              {CONTACT_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {CONTACT_TYPE_LABELS[t]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant={groupByCountry ? "default" : "outline"}
-            onClick={() => setGroupByCountry((v) => !v)}
-            className="md:w-auto"
-          >
-            Group by country
-          </Button>
-        </div>
-      ) : null}
-
-      {isLoading ? <ListSkeleton /> : null}
-
-      {isError ? (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          Failed to load contacts: {(error as Error).message}
-        </div>
-      ) : null}
-
-      {!isLoading && !isError && !hasAnyContacts ? (
-        <EmptyState onAdd={openCreate} />
-      ) : null}
-
-      {!isLoading && !isError && hasAnyContacts && !hasFilteredContacts ? (
-        <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
-          No contacts match the current filters.
-        </div>
-      ) : null}
-
-      {!isLoading && hasFilteredContacts ? (
-        groupByCountry ? (
-          <GroupedView
-            contacts={filtered}
-            isMobile={isMobile}
-            onEdit={openEdit}
-            onDelete={openDelete}
-          />
-        ) : isMobile ? (
-          <ContactsCardList
-            contacts={filtered}
-            onEdit={openEdit}
-            onDelete={openDelete}
-          />
-        ) : (
-          <ContactsTable
-            contacts={filtered}
-            onEdit={openEdit}
-            onDelete={openDelete}
-          />
-        )
-      ) : null}
-
-      {hasAnyContacts ? (
-        <Button
-          size="icon"
-          onClick={openCreate}
-          className="fixed bottom-6 right-6 size-14 rounded-full shadow-lg"
-          aria-label="Add contact"
-        >
-          <Plus className="size-6" />
-        </Button>
-      ) : null}
+          ) : null}
+        </>
+      )}
 
       <ContactFormDialog
         open={formOpen}
@@ -203,6 +274,18 @@ export function ContactsIndex() {
           }}
           contactId={deleteTarget.id}
           contactName={deleteTarget.name}
+        />
+      ) : null}
+
+      {restoreTarget ? (
+        <RestoreContactDialog
+          open={restoreOpen}
+          onOpenChange={(o) => {
+            setRestoreOpen(o);
+            if (!o) setRestoreTarget(null);
+          }}
+          contactId={restoreTarget.id}
+          contactName={restoreTarget.name}
         />
       ) : null}
     </div>

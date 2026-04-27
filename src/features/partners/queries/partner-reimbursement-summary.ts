@@ -21,7 +21,7 @@ export function extractClaimsAndPayouts(rows: PartnerTransactionRow[]): {
         currency: r.currency,
         description: r.description ?? null,
       });
-    } else if (r.kind === "partner_loan_out" && r.partner_id) {
+    } else if (r.kind === "partner_loan_out" && r.partner_id && !r.is_loan) {
       payouts.push({
         id: r.id,
         date: r.transaction_date,

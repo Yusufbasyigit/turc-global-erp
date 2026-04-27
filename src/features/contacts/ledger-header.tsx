@@ -21,9 +21,9 @@ export function LedgerHeader({
   const netBalance = fifo.net_balance;
   const netTone =
     netBalance > 0.001
-      ? "text-rose-300"
+      ? "text-rose-700"
       : netBalance < -0.001
-        ? "text-emerald-300"
+        ? "text-emerald-700"
         : "text-muted-foreground";
   const netLabel =
     netBalance > 0.001
@@ -90,9 +90,9 @@ function SubStat({
 }) {
   const toneClass =
     tone === "emerald"
-      ? "text-emerald-300"
+      ? "text-emerald-700"
       : tone === "amber"
-        ? "text-amber-300"
+        ? "text-amber-700"
         : "text-foreground";
   return (
     <div title={tooltip}>

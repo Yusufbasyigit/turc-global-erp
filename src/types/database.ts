@@ -15,6 +15,9 @@ export type Database = {
   public: {
     Tables: {
       accounts: {
+        // Patched inline for the 20260425130000_accounts_lifecycle migration
+        // (is_active + deleted_at). Will be regenerated cleanly by
+        // `npm run db:types` once Yusuf applies the SQL in the dashboard.
         Row: {
           account_name: string
           account_type: string | null
@@ -24,10 +27,12 @@ export type Database = {
           created_by: string | null
           created_time: string | null
           custody_location_id: string | null
+          deleted_at: string | null
           edited_by: string | null
           edited_time: string | null
           iban: string | null
           id: string
+          is_active: boolean
           shares: number | null
           subtype: string | null
         }
@@ -40,10 +45,12 @@ export type Database = {
           created_by?: string | null
           created_time?: string | null
           custody_location_id?: string | null
+          deleted_at?: string | null
           edited_by?: string | null
           edited_time?: string | null
           iban?: string | null
           id?: string
+          is_active?: boolean
           shares?: number | null
           subtype?: string | null
         }
@@ -56,10 +63,12 @@ export type Database = {
           created_by?: string | null
           created_time?: string | null
           custody_location_id?: string | null
+          deleted_at?: string | null
           edited_by?: string | null
           edited_time?: string | null
           iban?: string | null
           id?: string
+          is_active?: boolean
           shares?: number | null
           subtype?: string | null
         }
@@ -287,6 +296,41 @@ export type Database = {
         }
         Relationships: []
       }
+      loan_installments: {
+        Row: {
+          amount: number
+          created_time: string
+          currency: string
+          due_date: string
+          id: string
+          loan_transaction_id: string
+        }
+        Insert: {
+          amount: number
+          created_time?: string
+          currency: string
+          due_date: string
+          id?: string
+          loan_transaction_id: string
+        }
+        Update: {
+          amount?: number
+          created_time?: string
+          currency?: string
+          due_date?: string
+          id?: string
+          loan_transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loan_installments_loan_transaction_id_fkey"
+            columns: ["loan_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_details: {
         Row: {
           actual_purchase_price: number | null
@@ -511,6 +555,33 @@ export type Database = {
           },
         ]
       }
+      monthly_fx_overrides: {
+        Row: {
+          currency_code: string
+          note: string | null
+          period: string
+          rate_to_usd: number
+          set_at: string
+          set_by: string | null
+        }
+        Insert: {
+          currency_code: string
+          note?: string | null
+          period: string
+          rate_to_usd: number
+          set_at?: string
+          set_by?: string | null
+        }
+        Update: {
+          currency_code?: string
+          note?: string | null
+          period?: string
+          rate_to_usd?: number
+          set_at?: string
+          set_by?: string | null
+        }
+        Relationships: []
+      }
       partners: {
         Row: {
           created_by: string | null
@@ -541,6 +612,42 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+        }
+        Relationships: []
+      }
+      psd_events: {
+        Row: {
+          created_by: string | null
+          created_time: string
+          deleted_at: string | null
+          edited_by: string | null
+          edited_time: string | null
+          event_date: string
+          fiscal_period: string | null
+          id: string
+          note: string | null
+        }
+        Insert: {
+          created_by?: string | null
+          created_time?: string
+          deleted_at?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          event_date: string
+          fiscal_period?: string | null
+          id?: string
+          note?: string | null
+        }
+        Update: {
+          created_by?: string | null
+          created_time?: string
+          deleted_at?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          event_date?: string
+          fiscal_period?: string | null
+          id?: string
+          note?: string | null
         }
         Relationships: []
       }
@@ -736,6 +843,98 @@ export type Database = {
         }
         Relationships: []
       }
+      real_estate_deals: {
+        // Patched inline for the 20260427170000_real_estate migration. Will
+        // be regenerated cleanly by `npm run db:types` once Yusuf applies
+        // the SQL in the dashboard.
+        Row: {
+          contact_id: string
+          created_by: string | null
+          created_time: string
+          currency: string
+          deleted_at: string | null
+          edited_by: string | null
+          edited_time: string | null
+          id: string
+          label: string
+          notes: string | null
+          start_date: string
+          sub_type: string
+        }
+        Insert: {
+          contact_id: string
+          created_by?: string | null
+          created_time?: string
+          currency: string
+          deleted_at?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          id?: string
+          label: string
+          notes?: string | null
+          start_date: string
+          sub_type: string
+        }
+        Update: {
+          contact_id?: string
+          created_by?: string | null
+          created_time?: string
+          currency?: string
+          deleted_at?: string | null
+          edited_by?: string | null
+          edited_time?: string | null
+          id?: string
+          label?: string
+          notes?: string | null
+          start_date?: string
+          sub_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "real_estate_deals_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      real_estate_installments: {
+        // Patched inline for the 20260427170000_real_estate migration.
+        Row: {
+          created_time: string
+          deal_id: string
+          due_date: string
+          expected_amount: number
+          id: string
+          sequence: number
+        }
+        Insert: {
+          created_time?: string
+          deal_id: string
+          due_date: string
+          expected_amount: number
+          id?: string
+          sequence: number
+        }
+        Update: {
+          created_time?: string
+          deal_id?: string
+          due_date?: string
+          expected_amount?: number
+          id?: string
+          sequence?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "real_estate_installments_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "real_estate_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipments: {
         Row: {
           container_type: string | null
@@ -814,6 +1013,9 @@ export type Database = {
         ]
       }
       transactions: {
+        // Patched inline for the 20260427170000_real_estate migration
+        // (real_estate_deal_id + revenue_source). Will be regenerated cleanly
+        // by `npm run db:types` once Yusuf applies the SQL in the dashboard.
         Row: {
           amount: number
           attachment_path: string | null
@@ -830,14 +1032,18 @@ export type Database = {
           fx_rate_applied: number | null
           fx_target_currency: string | null
           id: string
+          is_loan: boolean
           kdv_period: string | null
           kind: string
           net_amount: number | null
           partner_id: string | null
+          psd_event_id: string | null
+          real_estate_deal_id: string | null
           reference_number: string | null
           related_order_id: string | null
           related_payable_id: string | null
           related_shipment_id: string | null
+          revenue_source: string | null
           to_account_id: string | null
           transaction_date: string
           vat_amount: number | null
@@ -859,14 +1065,18 @@ export type Database = {
           fx_rate_applied?: number | null
           fx_target_currency?: string | null
           id?: string
+          is_loan?: boolean
           kdv_period?: string | null
           kind: string
           net_amount?: number | null
           partner_id?: string | null
+          psd_event_id?: string | null
+          real_estate_deal_id?: string | null
           reference_number?: string | null
           related_order_id?: string | null
           related_payable_id?: string | null
           related_shipment_id?: string | null
+          revenue_source?: string | null
           to_account_id?: string | null
           transaction_date: string
           vat_amount?: number | null
@@ -888,14 +1098,18 @@ export type Database = {
           fx_rate_applied?: number | null
           fx_target_currency?: string | null
           id?: string
+          is_loan?: boolean
           kdv_period?: string | null
           kind?: string
           net_amount?: number | null
           partner_id?: string | null
+          psd_event_id?: string | null
+          real_estate_deal_id?: string | null
           reference_number?: string | null
           related_order_id?: string | null
           related_payable_id?: string | null
           related_shipment_id?: string | null
+          revenue_source?: string | null
           to_account_id?: string | null
           transaction_date?: string
           vat_amount?: number | null
@@ -907,6 +1121,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_psd_event_id_fkey"
+            columns: ["psd_event_id"]
+            isOneToOne: false
+            referencedRelation: "psd_events"
             referencedColumns: ["id"]
           },
           {
@@ -942,6 +1163,13 @@ export type Database = {
             columns: ["to_account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_real_estate_deal_id_fkey"
+            columns: ["real_estate_deal_id"]
+            isOneToOne: false
+            referencedRelation: "real_estate_deals"
             referencedColumns: ["id"]
           },
         ]

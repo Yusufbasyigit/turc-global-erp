@@ -11,6 +11,11 @@ export type PartnerPendingCurrency = {
   currency: string;
   amount: number;
   claim_count: number;
+  // The oldest open claim's date and outstanding amount, populated when
+  // claim_count > 0. The dashboard's "old reimbursement" attention rule
+  // reads these instead of refetching the same per-claim allocations.
+  oldest_open_claim_date: string | null;
+  oldest_open_claim_amount: number;
 };
 
 export type PartnerPendingSummary = {
@@ -27,6 +32,7 @@ export type ClaimOrPayoutRow = {
   amount: number | string;
   currency: string;
   description: string | null;
+  is_loan: boolean;
 };
 
 export function buildPendingSummary(
@@ -55,7 +61,7 @@ export function buildPendingSummary(
           currency: r.currency,
           description: r.description,
         });
-      } else if (r.kind === "partner_loan_out") {
+      } else if (r.kind === "partner_loan_out" && !r.is_loan) {
         payouts.push({
           id: r.id,
           date: r.transaction_date,
@@ -72,10 +78,15 @@ export function buildPendingSummary(
       const open = bucket.claim_allocations.filter(
         (a) => a.outstanding > 0.001,
       );
+      // Bucket's claim_allocations are already sorted by date asc, id asc
+      // by allocatePartnerReimbursements; the first open claim is the oldest.
+      const oldest = open[0] ?? null;
       pending.push({
         currency,
         amount: bucket.total_outstanding,
         claim_count: open.length,
+        oldest_open_claim_date: oldest?.claim_date ?? null,
+        oldest_open_claim_amount: oldest?.outstanding ?? 0,
       });
     }
     if (pending.length > 0) {
@@ -105,7 +116,7 @@ export async function listPartnersWithPendingReimbursements(): Promise<
   const { data: rows, error: tErr } = await supabase
     .from("transactions")
     .select(
-      "id, kind, partner_id, from_account_id, transaction_date, amount, currency, description",
+      "id, kind, partner_id, from_account_id, transaction_date, amount, currency, description, is_loan",
     )
     .in("partner_id", activeIds)
     .in("kind", ["expense", "partner_loan_out"]);

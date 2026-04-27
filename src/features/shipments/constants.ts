@@ -9,13 +9,13 @@ export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
 
 export const SHIPMENT_STATUS_BADGE_CLASSES: Record<ShipmentStatus, string> = {
   draft:
-    "border-transparent bg-zinc-500/15 text-zinc-300 hover:bg-zinc-500/20",
+    "border-transparent bg-zinc-500/15 text-zinc-700 hover:bg-zinc-500/25",
   booked:
-    "border-transparent bg-sky-500/15 text-sky-300 hover:bg-sky-500/20",
+    "border-transparent bg-sky-500/15 text-sky-800 hover:bg-sky-500/25",
   in_transit:
-    "border-transparent bg-amber-500/15 text-amber-300 hover:bg-amber-500/20",
+    "border-transparent bg-amber-500/20 text-amber-800 hover:bg-amber-500/30",
   arrived:
-    "border-transparent bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20",
+    "border-transparent bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25",
 };
 
 export const NEXT_SHIPMENT_STATUS: Partial<

@@ -35,9 +35,9 @@ const STATUS_LABEL: Record<InvoiceStatus, string> = {
 };
 
 const STATUS_CLASSES: Record<InvoiceStatus, string> = {
-  paid: "border-transparent bg-emerald-500/15 text-emerald-300",
-  partial: "border-transparent bg-amber-500/15 text-amber-300",
-  open: "border-transparent bg-sky-500/15 text-sky-300",
+  paid: "border-transparent bg-emerald-500/15 text-emerald-800",
+  partial: "border-transparent bg-amber-500/20 text-amber-800",
+  open: "border-transparent bg-sky-500/15 text-sky-800",
 };
 
 export function SupplierLedgerSection({ contactId }: { contactId: string }) {
@@ -124,7 +124,7 @@ export function SupplierLedgerSection({ contactId }: { contactId: string }) {
         </div>
 
         {summary.excluded > 0 ? (
-          <p className="text-xs text-amber-400">
+          <p className="text-xs text-amber-700">
             Mixed currencies — {summary.excluded} row
             {summary.excluded === 1 ? "" : "s"} excluded from totals.
           </p>
@@ -245,7 +245,7 @@ function SummaryTile({
       <p
         className={cn(
           "mt-1 text-lg font-semibold tabular-nums",
-          emphasize && "text-amber-300",
+          emphasize && "text-amber-700",
         )}
       >
         {value}

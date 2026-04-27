@@ -146,6 +146,10 @@ Transfers create two linked rows (out of one holding, into another).
   (a) partner loans in/out, (b) monthly profit-share distributions. Each
   transaction on an Ortak holding must record its *movement type* so the
   accounting module posts to the correct GL account.
+- **Account lifecycle.** `accounts` rows have `is_active` (deactivate, hides
+  from pickers) and `deleted_at` (soft-delete, hides from registry).
+  Balances continue to compute over `treasury_movements` regardless of
+  either flag — historical totals don't change when an account is retired.
 
 ## Still to decide
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Controller,
   useForm,
@@ -179,6 +179,8 @@ export type TransactionPrefill = {
   kdv_period?: string;
   reference_number_placeholder?: string;
   paid_by?: "business" | "partner";
+  from_account_id?: string;
+  to_account_id?: string;
 };
 
 export function TransactionFormDialog({
@@ -198,13 +200,13 @@ export function TransactionFormDialog({
   const isEdit = Boolean(transaction);
   const [stepIndex, setStepIndex] = useState(0);
 
-  const stableNewIdRef = useRef<string | null>(null);
-  if (stableNewIdRef.current === null) {
-    stableNewIdRef.current = crypto.randomUUID();
-  }
+  // Lazy-init UUID for new-transaction inserts so storage uploads can use it
+  // as a path prefix before the row is inserted. Reset on close so each "new"
+  // session gets a fresh ID.
+  const [stableNewId, setStableNewId] = useState(() => crypto.randomUUID());
   const effectiveTxnId = isEdit
     ? (transaction!.id as string)
-    : (stableNewIdRef.current as string);
+    : stableNewId;
 
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
@@ -226,7 +228,7 @@ export function TransactionFormDialog({
       setPendingPreview(null);
       setRequestedRemoval(false);
       setStepIndex(0);
-      if (!isEdit) stableNewIdRef.current = null;
+      if (!isEdit) setStableNewId(crypto.randomUUID());
     }
     onOpenChange(next);
   };
@@ -251,9 +253,10 @@ export function TransactionFormDialog({
       if (prefill.contact_id) mutable.contact_id = prefill.contact_id;
       if (prefill.kdv_period) mutable.kdv_period = prefill.kdv_period;
       if (prefill.paid_by) mutable.paid_by = prefill.paid_by;
+      if (prefill.from_account_id) mutable.from_account_id = prefill.from_account_id;
+      if (prefill.to_account_id) mutable.to_account_id = prefill.to_account_id;
     }
     form.reset(base);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStepIndex(prefill?.kind ? 1 : 0);
   }, [open, isEdit, transaction, form, prefill]);
 
@@ -1074,49 +1077,9 @@ export function TransactionFormDialog({
                 </>
               ) : null}
 
-              {kind === "profit_distribution" ? (
-                <>
-                  <Field label="Partner (optional)">
-                    <Controller
-                      name="partner_id"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Combobox
-                          items={partnerItems}
-                          value={field.value || null}
-                          onChange={(v) => field.onChange(v ?? "")}
-                          placeholder="Pick a partner (leave empty for general)"
-                          searchPlaceholder="Search or create…"
-                          emptyMessage="No partners."
-                          clearable
-                          onCreate={async (label) => {
-                            await createPartnerMut.mutateAsync(label);
-                          }}
-                        />
-                      )}
-                    />
-                  </Field>
-                  <Field
-                    label="From account *"
-                    error={errMsg("from_account_id")}
-                  >
-                    <Controller
-                      name="from_account_id"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Combobox
-                          items={accountItems}
-                          value={field.value || null}
-                          onChange={(v) => field.onChange(v ?? "")}
-                          placeholder="Pick an account"
-                          searchPlaceholder="Search…"
-                          emptyMessage="No accounts."
-                        />
-                      )}
-                    />
-                  </Field>
-                </>
-              ) : null}
+              {/* profit_distribution is disabled in the kind picker — PSD legs
+                  are created via the dedicated PSD dialog on /partners, which
+                  supports multi-currency multi-account events. */}
 
               {kind === "tax_payment" ? (
                 <>
@@ -1568,9 +1531,12 @@ function buildInsertPayload(
         contact_id: null,
       };
     case "profit_distribution":
+      // Disabled in the kind picker — PSD legs are created via the PSD dialog
+      // on /partners, which builds payloads directly. This branch is kept
+      // for exhaustiveness only and never fires from this form.
       return {
         ...common,
-        partner_id: v.partner_id ? v.partner_id : null,
+        partner_id: null,
         from_account_id: v.from_account_id,
         to_account_id: null,
         contact_id: null,

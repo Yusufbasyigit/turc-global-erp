@@ -106,7 +106,12 @@ export function Combobox({
         className="w-(--radix-popover-trigger-width) p-0"
         align="start"
       >
-        <Command>
+        <Command
+          filter={(value, search) => {
+            if (!search) return 1;
+            return value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+          }}
+        >
           <CommandInput
             placeholder={searchPlaceholder}
             value={query}

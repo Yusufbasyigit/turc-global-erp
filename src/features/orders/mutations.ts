@@ -634,10 +634,13 @@ export async function cancelOrder(input: {
 }
 
 // Sets shipment_id and (if currently null) defaults billing_shipment_id to
-// the same shipment per the spec.
+// the same shipment per the spec. When `billing_shipment_id` is passed
+// explicitly, it overrides the default — this is the roll-over case where
+// goods physically ship on one shipment but stay billed on another.
 export async function assignOrderToShipment(input: {
   order_id: string;
   shipment_id: string;
+  billing_shipment_id?: string | null;
 }): Promise<Order> {
   const supabase = createClient();
   const userId = await currentUserId();
@@ -645,7 +648,9 @@ export async function assignOrderToShipment(input: {
 
   const current = await loadOrder(input.order_id);
   const nextBillingShipmentId =
-    current.billing_shipment_id ?? input.shipment_id;
+    input.billing_shipment_id !== undefined
+      ? input.billing_shipment_id
+      : (current.billing_shipment_id ?? input.shipment_id);
   const billingChanged =
     nextBillingShipmentId !== current.billing_shipment_id;
 
@@ -667,7 +672,7 @@ export async function assignOrderToShipment(input: {
     .single();
   if (error) throw error;
 
-  if (billingChanged) {
+  if (billingChanged && nextBillingShipmentId) {
     try {
       await refreshShipmentBilling(nextBillingShipmentId);
     } catch (refreshErr) {

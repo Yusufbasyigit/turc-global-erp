@@ -75,14 +75,20 @@ function refund(id: string, date: string, amount: number, currency: string): Led
   };
 }
 
-function adjustment(id: string, date: string, amount: number, currency: string): LedgerEvent {
+function adjustment(
+  id: string,
+  date: string,
+  amount: number,
+  currency: string,
+  shipmentId?: string,
+): LedgerEvent {
   return {
     id,
     date,
     kind: "adjustment",
     amount,
     currency,
-    related_shipment_id: null,
+    related_shipment_id: shipmentId ?? null,
     fx_converted_amount: null,
     fx_target_currency: null,
   };
@@ -132,7 +138,7 @@ section("3. Overpayment -> unallocated_credit > 0");
   assertEq("paid", r.shipment_allocations[0].paid_amount, 500);
   assertEq("outstanding", r.shipment_allocations[0].outstanding_amount, 0);
   assertEq("unallocated_credit", r.unallocated_credit, 300);
-  assertEq("net_balance", r.net_balance, 0);
+  assertEq("net_balance", r.net_balance, -300);
 }
 
 section("4. Partial payment");

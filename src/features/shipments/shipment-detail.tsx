@@ -8,7 +8,6 @@ import {
   ArrowRight,
   FileText,
   Pencil,
-  Plus,
   Trash2,
   Unlink,
   Upload,
@@ -394,7 +393,7 @@ export function ShipmentDetail({ id }: { id: string }) {
           <div className="text-sm">
             {shipment.freight_cost !== null ? (
               <span>
-                {Number(shipment.freight_cost).toLocaleString()}{" "}
+                {formatMoney(Number(shipment.freight_cost))}{" "}
                 {shipment.freight_currency ?? shipment.invoice_currency}
               </span>
             ) : (

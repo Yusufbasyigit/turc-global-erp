@@ -21,6 +21,7 @@ export type ProductCategoryInsert = PublicTable<"product_categories">["Insert"];
 
 export type Account = PublicTable<"accounts">["Row"];
 export type AccountInsert = PublicTable<"accounts">["Insert"];
+export type AccountUpdate = PublicTable<"accounts">["Update"];
 
 export type CustodyLocation = PublicTable<"custody_locations">["Row"];
 
@@ -60,8 +61,31 @@ export type Partner = PublicTable<"partners">["Row"];
 export type PartnerInsert = PublicTable<"partners">["Insert"];
 export type PartnerUpdate = PublicTable<"partners">["Update"];
 
+export type PsdEvent = PublicTable<"psd_events">["Row"];
+export type PsdEventInsert = PublicTable<"psd_events">["Insert"];
+export type PsdEventUpdate = PublicTable<"psd_events">["Update"];
+
+export type LoanInstallment = PublicTable<"loan_installments">["Row"];
+export type LoanInstallmentInsert = PublicTable<"loan_installments">["Insert"];
+export type LoanInstallmentUpdate = PublicTable<"loan_installments">["Update"];
+
+export type RealEstateDeal = PublicTable<"real_estate_deals">["Row"];
+export type RealEstateDealInsert = PublicTable<"real_estate_deals">["Insert"];
+export type RealEstateDealUpdate = PublicTable<"real_estate_deals">["Update"];
+
+export type RealEstateInstallment =
+  PublicTable<"real_estate_installments">["Row"];
+export type RealEstateInstallmentInsert =
+  PublicTable<"real_estate_installments">["Insert"];
+export type RealEstateInstallmentUpdate =
+  PublicTable<"real_estate_installments">["Update"];
+
 export type ExpenseType = PublicTable<"expense_types">["Row"];
 export type ExpenseTypeInsert = PublicTable<"expense_types">["Insert"];
+
+export type MonthlyFxOverride = PublicTable<"monthly_fx_overrides">["Row"];
+export type MonthlyFxOverrideInsert = PublicTable<"monthly_fx_overrides">["Insert"];
+export type MonthlyFxOverrideUpdate = PublicTable<"monthly_fx_overrides">["Update"];
 
 export type Order = PublicTable<"orders">["Row"];
 export type OrderInsert = PublicTable<"orders">["Insert"];
@@ -79,9 +103,16 @@ export const CONTACT_TYPES = [
   "customer",
   "supplier",
   "logistics",
+  "real_estate",
   "other",
 ] as const;
 export type ContactType = (typeof CONTACT_TYPES)[number];
+
+export const REVENUE_SOURCES = ["real_estate", "export"] as const;
+export type RevenueSource = (typeof REVENUE_SOURCES)[number];
+
+export const REAL_ESTATE_SUB_TYPES = ["rent", "sale"] as const;
+export type RealEstateSubType = (typeof REAL_ESTATE_SUB_TYPES)[number];
 
 export const BALANCE_CURRENCIES = ["TRY", "EUR", "USD", "GBP"] as const;
 export type BalanceCurrency = (typeof BALANCE_CURRENCIES)[number];
@@ -132,6 +163,8 @@ export const TRANSACTION_KINDS = [
   "tax_payment",
   "order_billing",
   "shipment_billing",
+  "shipment_cogs",
+  "shipment_freight",
   "adjustment",
 ] as const;
 export type TransactionKind = (typeof TRANSACTION_KINDS)[number];
@@ -170,6 +203,9 @@ export type Wave1Kind = (typeof WAVE_1_KINDS)[number];
 export const DISABLED_KINDS = [
   "order_billing",
   "shipment_billing",
+  "shipment_cogs",
+  "shipment_freight",
+  "profit_distribution",
 ] as const satisfies readonly TransactionKind[];
 export type DisabledKind = (typeof DISABLED_KINDS)[number];
 

@@ -102,10 +102,12 @@ export function RecordMovementDialog({
   open,
   onOpenChange,
   accounts,
+  prefillAccountId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   accounts: AccountWithCustody[];
+  prefillAccountId?: string;
 }) {
   const qc = useQueryClient();
   const [stepIndex, setStepIndex] = useState(0);
@@ -118,11 +120,19 @@ export function RecordMovementDialog({
 
   useEffect(() => {
     if (open) {
-      form.reset(defaultValues() as never);
+      const base = defaultValues();
+      if (prefillAccountId) {
+        // Single-leg uses account_id; paired (transfer/trade) uses
+        // from_account_id. Default kind is "deposit" (single-leg) so we set
+        // both — only the field for the active discriminator gets used.
+        base.account_id = prefillAccountId;
+        base.from_account_id = prefillAccountId;
+      }
+      form.reset(base as never);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStepIndex(0);
     }
-  }, [open, form]);
+  }, [open, form, prefillAccountId]);
 
   const kind = useWatch({ control: form.control, name: "kind" }) as MovementKind;
   const isPaired = PAIRED_KINDS.includes(kind);

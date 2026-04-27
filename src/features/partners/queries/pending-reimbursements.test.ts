@@ -42,6 +42,7 @@ function claim(
     amount,
     currency,
     description: null,
+    is_loan: false,
   };
 }
 
@@ -61,6 +62,7 @@ function payout(
     amount,
     currency,
     description: null,
+    is_loan: false,
   };
 }
 
@@ -161,6 +163,7 @@ section("4. Company-paid expense is NOT a claim (from_account_id set)");
       amount: 500,
       currency: "USD",
       description: null,
+      is_loan: false,
     },
   ];
   const r = buildPendingSummary([partners[0]], rows);
@@ -181,6 +184,7 @@ section("5. Rows with null partner_id are ignored");
         amount: 500,
         currency: "USD",
         description: null,
+        is_loan: false,
       },
     ],
   );

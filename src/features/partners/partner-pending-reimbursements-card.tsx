@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatCurrency as formatMoney } from "@/lib/format-money";
+import { formatDateOnly } from "@/lib/format-date";
 import type { PartnerReimbursementResult } from "@/lib/ledger/partner-reimbursement-allocation";
 import {
   PayReimbursementsButton,
@@ -13,16 +14,7 @@ import {
 } from "./pay-reimbursements-button";
 
 function formatDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    });
-  } catch {
-    return dateStr;
-  }
+  return formatDateOnly(dateStr);
 }
 
 export function PartnerPendingReimbursementsCard({

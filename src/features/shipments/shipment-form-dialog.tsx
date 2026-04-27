@@ -116,14 +116,14 @@ export function ShipmentFormDialog({
   const isEdit = Boolean(shipment);
   const freightLocked = isEdit && shipment?.status === "arrived";
 
-  const stableIdRef = useRef<string | null>(null);
-  if (!isEdit && stableIdRef.current === null) {
-    stableIdRef.current = crypto.randomUUID();
-  }
-  const effectiveId = isEdit ? (shipment as Shipment).id : stableIdRef.current!;
+  // Lazy-init a stable UUID for new-shipment inserts so the row ID is set
+  // before submit (storage uploads need it as a path prefix). Reset on close
+  // so reopening for "new" gets a fresh ID.
+  const [stableNewId, setStableNewId] = useState(() => crypto.randomUUID());
+  const effectiveId = isEdit ? (shipment as Shipment).id : stableNewId;
 
   const handleOpenChange = (next: boolean) => {
-    if (!next && !isEdit) stableIdRef.current = null;
+    if (!next && !isEdit) setStableNewId(crypto.randomUUID());
     onOpenChange(next);
   };
 

@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { ArrowDownLeft, ArrowUpRight, Receipt } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  HandCoins,
+  Receipt,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format-money";
 import type { PartnerTransactionRow } from "./queries/partner-transactions";
@@ -31,12 +36,16 @@ export function PartnerActivitySums({
 }: {
   rows: PartnerTransactionRow[];
 }) {
-  const loansIn = useMemo(
-    () => sumBy(rows, (r) => r.kind === "partner_loan_in"),
+  const capitalReceived = useMemo(
+    () => sumBy(rows, (r) => r.kind === "partner_loan_in" && !r.is_loan),
     [rows],
   );
-  const loansOut = useMemo(
-    () => sumBy(rows, (r) => r.kind === "partner_loan_out"),
+  const loanRepaymentsReceived = useMemo(
+    () => sumBy(rows, (r) => r.kind === "partner_loan_in" && r.is_loan),
+    [rows],
+  );
+  const reimbursementsPaid = useMemo(
+    () => sumBy(rows, (r) => r.kind === "partner_loan_out" && !r.is_loan),
     [rows],
   );
   const partnerPaidExpenses = useMemo(
@@ -52,21 +61,27 @@ export function PartnerActivitySums({
   );
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <SumCard
-        icon={<ArrowDownLeft className="size-4 text-emerald-400" />}
-        label="Loans received"
-        subtitle="Money into the business"
-        totals={loansIn}
+        icon={<ArrowDownLeft className="size-4 text-emerald-700" />}
+        label="Capital received"
+        subtitle="Partner money into the business"
+        totals={capitalReceived}
       />
       <SumCard
-        icon={<ArrowUpRight className="size-4 text-sky-400" />}
-        label="Loans returned & reimbursements paid"
-        subtitle="Money out to the partner"
-        totals={loansOut}
+        icon={<HandCoins className="size-4 text-sky-700" />}
+        label="Loan repayments received"
+        subtitle="Loans the partner has paid back"
+        totals={loanRepaymentsReceived}
       />
       <SumCard
-        icon={<Receipt className="size-4 text-amber-400" />}
+        icon={<ArrowUpRight className="size-4 text-sky-700" />}
+        label="Reimbursements paid"
+        subtitle="Money out to the partner (non-loan)"
+        totals={reimbursementsPaid}
+      />
+      <SumCard
+        icon={<Receipt className="size-4 text-amber-700" />}
         label="Partner-paid expenses"
         subtitle="Lifetime, regardless of settlement"
         totals={partnerPaidExpenses}

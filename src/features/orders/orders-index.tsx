@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { formatCurrency as formatMoney } from "@/lib/format-money";
+import { formatDateOnly } from "@/lib/format-date";
 import type {
   OrderStatus,
   OrderWithRelations,
@@ -45,17 +46,7 @@ import { OrderFormDialog } from "./order-form-dialog";
 type GroupBy = "flat" | "customer" | "status" | "shipment";
 
 function formatDateShort(dateStr: string | null): string {
-  if (!dateStr) return "—";
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    });
-  } catch {
-    return dateStr;
-  }
+  return formatDateOnly(dateStr);
 }
 
 function orderTotal(o: OrderWithRelations): number {
@@ -233,8 +224,8 @@ export function OrdersIndex() {
         <EmptyState onCreate={() => setFormOpen(true)} />
       ) : (
         <div className="flex flex-col gap-8">
-          {groups.map((g, gi) => (
-            <section key={gi} className="flex flex-col gap-2">
+          {groups.map((g) => (
+            <section key={g.title ?? "__flat__"} className="flex flex-col gap-2">
               {g.title ? (
                 <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {g.title}

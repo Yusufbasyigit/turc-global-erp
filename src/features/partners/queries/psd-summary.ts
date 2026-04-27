@@ -1,6 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { istanbulYearMonth } from "@/lib/proforma/istanbul-date";
+import type {
+  Account,
+  CustodyLocation,
+  PsdEvent,
+  Transaction,
+} from "@/lib/supabase/types";
 
 export type PsdRow = {
   year: number;
@@ -54,6 +60,7 @@ export async function listPsdSummary({
     .from("transactions")
     .select("transaction_date, currency, amount")
     .eq("kind", "profit_distribution")
+    .not("psd_event_id", "is", null)
     .gte("transaction_date", startIso)
     .lte("transaction_date", endIso);
   if (error) throw error;
@@ -74,11 +81,60 @@ export async function listPsdYearTotal(year: number): Promise<
     .sort((a, b) => a.currency.localeCompare(b.currency));
 }
 
+export type PsdEventLeg = Pick<
+  Transaction,
+  "id" | "amount" | "currency" | "from_account_id" | "transaction_date"
+> & {
+  from_account:
+    | (Pick<Account, "id" | "account_name" | "asset_code"> & {
+        custody_locations: Pick<CustodyLocation, "id" | "name"> | null;
+      })
+    | null;
+};
+
+export type PsdEventWithLegs = PsdEvent & {
+  legs: PsdEventLeg[];
+};
+
+const PSD_EVENT_SELECT = `
+  *,
+  legs:transactions!transactions_psd_event_id_fkey(
+    id, amount, currency, from_account_id, transaction_date,
+    from_account:accounts!transactions_from_account_id_fkey(
+      id, account_name, asset_code,
+      custody_locations:custody_locations!accounts_custody_location_id_fkey(id, name)
+    )
+  )
+`;
+
+export async function listPsdEvents({
+  yearFrom,
+  yearTo,
+}: {
+  yearFrom: number;
+  yearTo: number;
+}): Promise<PsdEventWithLegs[]> {
+  const supabase = createClient();
+  const startIso = `${yearFrom}-01-01`;
+  const endIso = `${yearTo}-12-31`;
+  const { data, error } = await supabase
+    .from("psd_events")
+    .select(PSD_EVENT_SELECT)
+    .is("deleted_at", null)
+    .gte("event_date", startIso)
+    .lte("event_date", endIso)
+    .order("event_date", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as PsdEventWithLegs[];
+}
+
 export const psdKeys = {
   all: ["partner-psd"] as const,
   summary: (yearFrom: number, yearTo: number) =>
     [...psdKeys.all, "summary", yearFrom, yearTo] as const,
   yearTotal: (year: number) => [...psdKeys.all, "year", year] as const,
+  events: (yearFrom: number, yearTo: number) =>
+    [...psdKeys.all, "events", yearFrom, yearTo] as const,
 };
 
 export function usePsdSummary({
@@ -98,5 +154,18 @@ export function usePsdYearTotal(year: number) {
   return useQuery({
     queryKey: psdKeys.yearTotal(year),
     queryFn: () => listPsdYearTotal(year),
+  });
+}
+
+export function usePsdEvents({
+  yearFrom,
+  yearTo,
+}: {
+  yearFrom: number;
+  yearTo: number;
+}) {
+  return useQuery({
+    queryKey: psdKeys.events(yearFrom, yearTo),
+    queryFn: () => listPsdEvents({ yearFrom, yearTo }),
   });
 }

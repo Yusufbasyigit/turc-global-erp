@@ -8,13 +8,13 @@ export function ShipmentStatementPdfFooter({ data }: { data: StatementData }) {
     <View style={statementStyles.sectionGap}>
       {data.hasSkippedCurrencyEvents ? (
         <Text style={statementStyles.footnote}>
-          Note: certains paiements en devises étrangères ne figurent pas sur ce
-          relevé; veuillez nous contacter pour réconciliation.
+          Note : certains paiements en devises étrangères ne figurent pas sur
+          ce relevé ; veuillez nous contacter pour réconciliation.
         </Text>
       ) : null}
       {data.isBillingStale ? (
         <Text style={statementStyles.footnote}>
-          Note interne: le montant facturé est en cours de rafraîchissement.
+          Note interne : le montant facturé est en cours de rafraîchissement.
         </Text>
       ) : null}
     </View>
