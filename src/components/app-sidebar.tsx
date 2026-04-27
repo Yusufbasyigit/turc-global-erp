@@ -77,30 +77,30 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              className="hover:bg-transparent active:bg-transparent"
-            >
+            <div className="flex items-center gap-2 p-2 group-data-[collapsible=icon]:p-0">
               <Image
-                src="/logo.png"
+                src="/just-tg.png"
                 alt="Turc Global"
-                width={800}
-                height={250}
-                className="h-8 w-auto object-contain"
+                width={128}
+                height={128}
+                className="size-8 shrink-0 object-contain"
                 priority
               />
-              <span className="flex-1" />
+              <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                <span className="truncate font-semibold">Turc Global</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  ERP
+                </span>
+              </div>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleSidebar();
-                }}
+                type="button"
+                onClick={toggleSidebar}
                 className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:hidden"
                 aria-label="Collapse sidebar"
               >
                 <PanelLeftClose className="h-4 w-4" />
               </button>
-            </SidebarMenuButton>
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
