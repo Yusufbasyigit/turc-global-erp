@@ -51,7 +51,7 @@ function isExpense(k: string): boolean {
 // double-counting against `shipment_billing`.
 function isRealEstateReceipt(t: TransactionWithRelations): boolean {
   if (t.kind !== "client_payment") return false;
-  return t.real_estate_deal_id != null || t.revenue_source === "real_estate";
+  return t.real_estate_deal_id != null;
 }
 
 export type RowKind = "revenue" | "expense";
@@ -84,12 +84,8 @@ export type Totals = {
   revenueTry: number;
   expenseTry: number;
   netTry: number;
-  // Split of revenueUsd / revenueTry by business line. Rule:
-  //   real_estate_deal_id != null  → real_estate
-  //   revenue_source = 'real_estate' → real_estate
-  //   revenue_source = 'export'      → export
-  //   contact.type = 'real_estate' (and revenue_source is null) → real_estate
-  //   else → export (catch-all so totals reconcile)
+  // Split of revenueUsd / revenueTry by business line: a client_payment is
+  // real-estate revenue iff `real_estate_deal_id` is set; otherwise export.
   revenueRealEstateUsd: number;
   revenueExportUsd: number;
   revenueRealEstateTry: number;
@@ -98,11 +94,7 @@ export type Totals = {
 };
 
 function classifyRevenueSource(t: TransactionWithRelations): "real_estate" | "export" {
-  if (t.real_estate_deal_id) return "real_estate";
-  if (t.revenue_source === "real_estate") return "real_estate";
-  if (t.revenue_source === "export") return "export";
-  if (t.contacts?.type === "real_estate") return "real_estate";
-  return "export";
+  return t.real_estate_deal_id ? "real_estate" : "export";
 }
 
 export type MonthlyPandL = {

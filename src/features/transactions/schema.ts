@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
   BALANCE_CURRENCIES,
   KDV_RATES,
-  REVENUE_SOURCES,
   TRANSACTION_KINDS,
 } from "@/lib/supabase/types";
 
@@ -61,7 +60,6 @@ export const transactionSchema = z
       fx_target_currency: z.string().optional().default(""),
       fx_converted_amount: optionalPositiveNumber,
       real_estate_deal_id: z.string().optional().default(""),
-      revenue_source: z.enum(REVENUE_SOURCES).optional(),
       ...commonFields,
     }),
     // WAVE 1 — client_refund
@@ -183,6 +181,13 @@ export const transactionSchema = z
           path: ["from_account_id"],
           code: z.ZodIssueCode.custom,
           message: "Clear source account when Partner pays",
+        });
+      }
+      if (v.paid_by === "partner" && v.contact_id) {
+        ctx.addIssue({
+          path: ["contact_id"],
+          code: z.ZodIssueCode.custom,
+          message: "Clear supplier when Partner pays",
         });
       }
     }

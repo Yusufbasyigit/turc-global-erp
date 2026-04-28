@@ -106,7 +106,7 @@ const TRANSACTION_SELECT = `
     custody_locations:custody_locations!accounts_custody_location_id_fkey(id, name)
   ),
   expense_types:expense_types!transactions_expense_type_id_fkey(id, name),
-  related_payable:transactions!transactions_related_payable_id_fkey(
+  related_payable:transactions!related_payable_id(
     id, reference_number, transaction_date, amount, currency
   )
 `;
@@ -214,7 +214,7 @@ export async function listTransactionsForSupplier(
   const { data: payments, error: payErr } = await supabase
     .from("transactions")
     .select(
-      "id, transaction_date, amount, currency, related_payable_id, related_payable:transactions!transactions_related_payable_id_fkey(id, reference_number)",
+      "id, transaction_date, amount, currency, related_payable_id, related_payable:transactions!related_payable_id(id, reference_number)",
     )
     .eq("kind", "supplier_payment")
     .eq("contact_id", contactId)

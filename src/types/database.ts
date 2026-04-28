@@ -1184,7 +1184,6 @@ export type Database = {
           related_order_id: string | null
           related_payable_id: string | null
           related_shipment_id: string | null
-          revenue_source: string | null
           to_account_id: string | null
           transaction_date: string
           vat_amount: number | null
@@ -1217,7 +1216,6 @@ export type Database = {
           related_order_id?: string | null
           related_payable_id?: string | null
           related_shipment_id?: string | null
-          revenue_source?: string | null
           to_account_id?: string | null
           transaction_date: string
           vat_amount?: number | null
@@ -1250,7 +1248,6 @@ export type Database = {
           related_order_id?: string | null
           related_payable_id?: string | null
           related_shipment_id?: string | null
-          revenue_source?: string | null
           to_account_id?: string | null
           transaction_date?: string
           vat_amount?: number | null

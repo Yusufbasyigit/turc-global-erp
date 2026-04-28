@@ -205,5 +205,36 @@ section("8. Refund with no unallocated credit -> reopens paid billing");
   assertEq("net_balance", r.net_balance, 200);
 }
 
+section("9. Prepayment(s) arriving before billing -> retroactive FIFO match");
+{
+  const r = allocateFifo(
+    [
+      payment("p1", "2026-04-01", 6300, "USD"),
+      payment("p2", "2026-04-22", 14700, "USD"),
+      billing("b1", "2026-04-27", 21000, "USD", "s1"),
+    ],
+    "USD",
+  );
+  assertEq("billing paid in full", r.shipment_allocations[0].paid_amount, 21000);
+  assertEq("outstanding zero", r.shipment_allocations[0].outstanding_amount, 0);
+  assertEq("fully_paid", r.shipment_allocations[0].is_fully_paid, true);
+  assertEq("unallocated_credit drained", r.unallocated_credit, 0);
+  assertEq("net_balance settled", r.net_balance, 0);
+}
+
+section("10. Prepayment exceeding billing -> remainder stays as credit");
+{
+  const r = allocateFifo(
+    [
+      payment("p1", "2026-04-01", 1000, "EUR"),
+      billing("b1", "2026-04-27", 600, "EUR", "s1"),
+    ],
+    "EUR",
+  );
+  assertEq("billing paid up to its amount", r.shipment_allocations[0].paid_amount, 600);
+  assertEq("excess stays as credit", r.unallocated_credit, 400);
+  assertEq("net_balance shows we owe them", r.net_balance, -400);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

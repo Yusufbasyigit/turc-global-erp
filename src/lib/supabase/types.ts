@@ -127,9 +127,6 @@ export const CONTACT_TYPES = [
 ] as const;
 export type ContactType = (typeof CONTACT_TYPES)[number];
 
-export const REVENUE_SOURCES = ["real_estate", "export"] as const;
-export type RevenueSource = (typeof REVENUE_SOURCES)[number];
-
 export const REAL_ESTATE_SUB_TYPES = ["rent", "sale"] as const;
 export type RealEstateSubType = (typeof REAL_ESTATE_SUB_TYPES)[number];
 

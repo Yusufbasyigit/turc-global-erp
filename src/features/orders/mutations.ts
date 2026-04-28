@@ -549,6 +549,17 @@ export async function advanceOrderStatus(input: {
         "Assign the order to a shipment before marking it shipped.",
       );
     }
+    const { data: shipment, error: shipErr } = await supabase
+      .from("shipments")
+      .select("status")
+      .eq("id", current.shipment_id)
+      .single();
+    if (shipErr) throw shipErr;
+    if (shipment.status === "draft") {
+      throw new Error(
+        "Book the assigned shipment before marking the order shipped.",
+      );
+    }
   }
 
   const update: OrderUpdate = {

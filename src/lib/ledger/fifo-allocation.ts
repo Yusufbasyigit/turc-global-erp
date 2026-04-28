@@ -162,6 +162,20 @@ export function allocateFifo(
 
   }
 
+  // Retroactive match: a payment that arrived before any billing is parked in
+  // unallocatedCredit. Once a later billing slot opens with paid < billed, drain
+  // the credit into that slot FIFO. Without this, prepayments stay "unallocated"
+  // forever and shipment_allocations[].paid_amount stays 0 even after the
+  // billing arrives.
+  for (const slot of billings) {
+    if (unallocatedCredit <= 0) break;
+    const capacity = slot.billed - slot.paid;
+    if (capacity <= 0) continue;
+    const take = Math.min(capacity, unallocatedCredit);
+    slot.paid += take;
+    unallocatedCredit -= take;
+  }
+
   const shipment_allocations: ShipmentAllocation[] = billings.map((slot) => {
     const outstanding = Math.max(0, slot.billed - slot.paid);
     return {

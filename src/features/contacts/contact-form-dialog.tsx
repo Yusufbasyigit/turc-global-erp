@@ -160,15 +160,24 @@ export function ContactFormDialog({
       return;
     }
     if (hasResetRef.current) return;
-    setStepIndex(0);
     if (!isEdit) {
+      setStepIndex(0);
       form.reset(DEFAULT_VALUES);
       hasResetRef.current = true;
     } else if (existing) {
+      setStepIndex(0);
       form.reset(toFormValues(existing));
       hasResetRef.current = true;
     }
   }, [open, isEdit, existing, form]);
+
+  // Belt-and-braces: regardless of the form-reset gate, every time the dialog
+  // opens we want to land on step 1. Without this, a previous in-flight open
+  // that closed before form.reset finished can leave stepIndex stuck at the
+  // last visited step, surfacing as "Add contact reopens to step 4".
+  useEffect(() => {
+    if (open) setStepIndex(0);
+  }, [open]);
 
   const createMut = useMutation({
     mutationFn: createContact,

@@ -240,7 +240,6 @@ export async function createReceipt(
     to_account_id: input.to_account_id,
     from_account_id: null,
     real_estate_deal_id: input.deal_id,
-    revenue_source: "real_estate",
     description: input.description,
     created_by: userId,
     created_time: now,

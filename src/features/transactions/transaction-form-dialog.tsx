@@ -744,15 +744,13 @@ export function TransactionFormDialog({
   >;
   const errMsg = (name: string): string | undefined => errors[name]?.message;
 
-  const onSubmit = form.handleSubmit((values) => saveMut.mutate(values));
+  const submit = form.handleSubmit((values) => saveMut.mutate(values));
 
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (!isLastStep) {
-      e.preventDefault();
-      void goNext();
-      return;
-    }
-    void onSubmit(e);
+    // Always swallow native form submits (Enter keypresses, stray submitters,
+    // browser autofill, etc.). The user advances steps via the Next button and
+    // submits via the explicit "Record transaction" button below.
+    e.preventDefault();
   };
 
   const handleFilePick = (file: File) => {
@@ -1082,23 +1080,25 @@ export function TransactionFormDialog({
                       )}
                     />
                   </Field>
-                  <Field label="Supplier (optional)">
-                    <Controller
-                      name="contact_id"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Combobox
-                          items={supplierItems}
-                          value={field.value || null}
-                          onChange={(v) => field.onChange(v ?? "")}
-                          placeholder="Pick a supplier"
-                          searchPlaceholder="Search…"
-                          emptyMessage="No suppliers."
-                          clearable
-                        />
-                      )}
-                    />
-                  </Field>
+                  {paidBy === "business" ? (
+                    <Field label="Supplier (optional)">
+                      <Controller
+                        name="contact_id"
+                        control={form.control}
+                        render={({ field }) => (
+                          <Combobox
+                            items={supplierItems}
+                            value={field.value || null}
+                            onChange={(v) => field.onChange(v ?? "")}
+                            placeholder="Pick a supplier"
+                            searchPlaceholder="Search…"
+                            emptyMessage="No suppliers."
+                            clearable
+                          />
+                        )}
+                      />
+                    </Field>
+                  ) : null}
                   <Field label="Paid by">
                     <Controller
                       name="paid_by"
@@ -1115,6 +1115,7 @@ export function TransactionFormDialog({
                                   form.setValue("partner_id", "");
                                 } else {
                                   form.setValue("from_account_id", "");
+                                  form.setValue("contact_id", "");
                                 }
                               }}
                               className={cn(
@@ -1653,7 +1654,11 @@ export function TransactionFormDialog({
                 Cancel
               </Button>
               {isLastStep ? (
-                <Button type="submit" disabled={saveMut.isPending}>
+                <Button
+                  type="button"
+                  disabled={saveMut.isPending}
+                  onClick={() => void submit()}
+                >
                   {saveMut.isPending
                     ? "Saving…"
                     : isEdit
@@ -1757,7 +1762,7 @@ function buildInsertPayload(
       return {
         ...common,
         expense_type_id: v.expense_type_id,
-        contact_id: v.contact_id || null,
+        contact_id: v.paid_by === "partner" ? null : v.contact_id || null,
         from_account_id: v.paid_by === "business" ? v.from_account_id : null,
         partner_id: v.paid_by === "partner" ? v.partner_id : null,
         to_account_id: null,
