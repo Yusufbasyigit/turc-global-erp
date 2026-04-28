@@ -87,8 +87,10 @@ function formatDateShort(dateStr: string): string {
 }
 
 function formatMoney(amount: number | string | null, currency: string): string {
+  if (amount == null) return "—";
+  if (typeof amount === "string" && amount.trim() === "") return "—";
   const n = typeof amount === "string" ? Number(amount) : amount;
-  if (n == null || !Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "—";
   return formatCurrency(n, currency);
 }
 
@@ -183,8 +185,15 @@ export function TransactionsIndex() {
     }, 1600);
   };
 
+  useEffect(() => {
+    return () => {
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    };
+  }, []);
+
   const groups = useMemo(() => {
-    if (groupBy === "flat") return [{ title: null, rows: filtered }];
+    if (groupBy === "flat")
+      return [{ key: "flat", title: null, rows: filtered }];
     if (groupBy === "kind") {
       const map = new Map<string, TransactionWithRelations[]>();
       for (const t of filtered) {
@@ -195,6 +204,7 @@ export function TransactionsIndex() {
       return Array.from(map.entries())
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([kind, rows]) => ({
+          key: `kind:${kind}`,
           title:
             TRANSACTION_KIND_LABELS[kind as TransactionKind] ?? kind,
           rows,
@@ -209,14 +219,20 @@ export function TransactionsIndex() {
     }
     return Array.from(map.entries())
       .sort(([a], [b]) => b.localeCompare(a))
-      .map(([k, rows]) => ({ title: k, rows }));
+      .map(([k, rows]) => ({ key: `month:${k}`, title: k, rows }));
   }, [filtered, groupBy]);
 
   const loading = txnQ.isLoading || accountsQ.isLoading;
 
   useEffect(() => {
-    if (prefillConsumedRef.current) return;
     const action = searchParams.get("action");
+    // No deep-link action present → reset the consumed flag so a *future*
+    // prefill URL fired within the same component instance still triggers.
+    if (action !== "edit" && action !== "new") {
+      prefillConsumedRef.current = false;
+      return;
+    }
+    if (prefillConsumedRef.current) return;
     if (action === "edit") {
       const id = searchParams.get("id");
       if (!id || transactions.length === 0) return;
@@ -229,8 +245,11 @@ export function TransactionsIndex() {
       router.replace("/transactions", { scroll: false });
       return;
     }
-    if (action !== "new") return;
-    const kind = searchParams.get("kind") as TransactionKind | null;
+    const kindRaw = searchParams.get("kind");
+    const kind =
+      kindRaw && (TRANSACTION_KINDS as readonly string[]).includes(kindRaw)
+        ? (kindRaw as TransactionKind)
+        : null;
     const partnerId = searchParams.get("partner_id");
     const contactId = searchParams.get("contact_id");
     const currency = searchParams.get("currency");
@@ -443,11 +462,22 @@ export function TransactionsIndex() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState onCreate={openNew} />
+        <EmptyState
+          onCreate={openNew}
+          filtered={transactions.length > 0}
+          onClearFilters={
+            transactions.length > 0
+              ? () => {
+                  setKindFilter(new Set());
+                  setSupplierFilter(null);
+                }
+              : undefined
+          }
+        />
       ) : (
         <div className="flex flex-col gap-8">
-          {groups.map((g, gi) => (
-            <section key={gi} className="flex flex-col gap-2">
+          {groups.map((g) => (
+            <section key={g.key} className="flex flex-col gap-2">
               {g.title ? (
                 <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {g.title}
@@ -683,16 +713,34 @@ function CustodyCell({ t }: { t: TransactionWithRelations }) {
   return <span>{from ?? to}</span>;
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+  onCreate,
+  filtered = false,
+  onClearFilters,
+}: {
+  onCreate: () => void;
+  filtered?: boolean;
+  onClearFilters?: () => void;
+}) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-12 text-center">
       <Receipt className="size-8 text-muted-foreground" />
       <p className="text-sm text-muted-foreground">
-        No transactions yet. Record your first transaction.
+        {filtered
+          ? "No transactions match the current filters."
+          : "No transactions yet. Record your first transaction."}
       </p>
-      <Button onClick={onCreate}>
-        <Plus className="mr-2 size-4" /> Record transaction
-      </Button>
+      {filtered ? (
+        onClearFilters ? (
+          <Button variant="outline" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        ) : null
+      ) : (
+        <Button onClick={onCreate}>
+          <Plus className="mr-2 size-4" /> Record transaction
+        </Button>
+      )}
     </div>
   );
 }

@@ -92,6 +92,7 @@ import {
 } from "./queries";
 import { todayDateString } from "@/features/treasury/fx-utils";
 import { treasuryKeys } from "@/features/treasury/queries";
+import { accountKeys } from "@/features/accounts/queries";
 
 type StepId = "kind" | "parties" | "details" | "vat" | "attachment";
 
@@ -246,7 +247,10 @@ export function TransactionFormDialog({
       setRequestedRemoval(false);
       setStepIndex(0);
       setKindView({ level: "categories" });
-      if (!isEdit) setStableNewId(crypto.randomUUID());
+      // Always regenerate so a subsequent "new" never reuses the prior id.
+      // Edit-close used to skip the regen, leaving the original mount-time
+      // UUID stale and reusable across multiple new-transaction sessions.
+      setStableNewId(crypto.randomUUID());
     }
     onOpenChange(next);
   };
@@ -450,6 +454,15 @@ export function TransactionFormDialog({
     if (vatComputed) {
       form.setValue("net_amount", vatComputed.net, { shouldValidate: false });
       form.setValue("vat_amount", vatComputed.vat, { shouldValidate: false });
+    } else {
+      // Amount became invalid or VAT was skipped — clear the previously
+      // computed values so they don't get persisted from stale form state.
+      form.setValue("net_amount", "" as unknown as number, {
+        shouldValidate: false,
+      });
+      form.setValue("vat_amount", "" as unknown as number, {
+        shouldValidate: false,
+      });
     }
   }, [vatComputed, showVat, form]);
 
@@ -729,6 +742,7 @@ export function TransactionFormDialog({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: transactionKeys.all });
       qc.invalidateQueries({ queryKey: treasuryKeys.all });
+      qc.invalidateQueries({ queryKey: accountKeys.all });
       toast.success(isEdit ? "Transaction updated" : "Transaction recorded");
       handleOpenChange(false);
     },
@@ -1231,10 +1245,23 @@ export function TransactionFormDialog({
                           items={supplierItems}
                           value={field.value || null}
                           onChange={(v) => {
+                            const prev = field.value;
                             field.onChange(v ?? "");
-                            form.setValue("related_payable_id", "", {
-                              shouldValidate: false,
-                            });
+                            // When the supplier actually changes, clear the
+                            // linked invoice plus the amount/currency that
+                            // were auto-copied from a previous invoice pick —
+                            // otherwise stale values from the prior supplier
+                            // bleed into the new supplier's payment.
+                            if (prev !== (v ?? "")) {
+                              form.setValue("related_payable_id", "", {
+                                shouldValidate: false,
+                              });
+                              form.setValue(
+                                "amount",
+                                "" as unknown as number,
+                                { shouldValidate: false },
+                              );
+                            }
                           }}
                           placeholder="Pick a supplier"
                           searchPlaceholder="Search…"

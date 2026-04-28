@@ -33,8 +33,18 @@ const dateString = z
 
 const currency = z.enum(BALANCE_CURRENCIES);
 
+// The form writes vat_rate as a number (e.g. 20) or null. Coerce string inputs
+// (URL prefill, edit-load fallback) into the matching KDV_RATES number, then
+// gate the value to the allowed enum.
+const KDV_RATE_NUMBERS = KDV_RATES as readonly number[];
 const vatRate = z
-  .union([z.literal(null), z.enum(KDV_RATES.map(String) as [string, ...string[]])])
+  .preprocess((v) => {
+    if (v === "" || v === null || v === undefined) return null;
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : v;
+  }, z.union([z.literal(null), z.number().refine((n) => KDV_RATE_NUMBERS.includes(n), {
+    message: "Pick a valid VAT rate",
+  })]))
   .nullable()
   .optional();
 
