@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw, ArrowRightLeft } from "lucide-react";
+import { RefreshCw, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,6 @@ import {
   usdValueFor,
 } from "./fx-utils";
 import { ASSET_TYPE_LABELS } from "./constants";
-import { AddHoldingDialog } from "./add-holding-dialog";
 import { RecordMovementDialog } from "./record-movement-dialog";
 
 type Grouping = "asset_type" | "custody" | "flat";
@@ -52,7 +52,6 @@ type Grouping = "asset_type" | "custody" | "flat";
 export function TreasuryIndex() {
   const qc = useQueryClient();
   const [grouping, setGrouping] = useState<Grouping>("asset_type");
-  const [addOpen, setAddOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
 
   const [showZero, setShowZero] = useState(false);
@@ -111,7 +110,7 @@ export function TreasuryIndex() {
   const refreshMut = useMutation({
     mutationFn: async () => {
       if (accounts.length === 0) {
-        throw new Error("No accounts yet. Add a holding first.");
+        throw new Error("No wallets yet. Create one in Accounts first.");
       }
       const client = createClient();
       const [fxResult, priceResult] = await Promise.allSettled([
@@ -275,10 +274,6 @@ export function TreasuryIndex() {
             <ArrowRightLeft className="mr-2 size-4" />
             Record movement
           </Button>
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Add holding
-          </Button>
         </div>
       </header>
 
@@ -327,7 +322,7 @@ export function TreasuryIndex() {
           <Skeleton className="h-10 w-full" />
         </div>
       ) : accounts.length === 0 ? (
-        <EmptyState onAdd={() => setAddOpen(true)} />
+        <EmptyState />
       ) : (
         <HoldingsGroups
           accounts={visibleAccounts}
@@ -339,18 +334,6 @@ export function TreasuryIndex() {
         />
       )}
 
-      <AddHoldingDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        custodyLocations={custodyQ.data ?? []}
-        existingAssetCodes={Array.from(
-          new Set(
-            accounts
-              .map((a) => a.asset_code)
-              .filter((c): c is string => Boolean(c)),
-          ),
-        ).sort()}
-      />
       <RecordMovementDialog
         open={moveOpen}
         onOpenChange={setMoveOpen}
@@ -385,15 +368,14 @@ function SegmentedButton({
   );
 }
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState() {
   return (
     <div className="rounded-lg border border-dashed p-10 text-center">
       <p className="text-sm text-muted-foreground">
-        No holdings yet. Add one to get started.
+        No wallets yet. Create one in Accounts to get started.
       </p>
-      <Button className="mt-4" onClick={onAdd}>
-        <Plus className="mr-2 size-4" />
-        Add holding
+      <Button asChild className="mt-4">
+        <Link href="/accounts">Go to Accounts</Link>
       </Button>
     </div>
   );

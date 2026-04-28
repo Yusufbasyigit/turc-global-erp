@@ -81,6 +81,19 @@ export const SINGLE_LEG_KINDS: MovementKind[] = [
 
 export const PAIRED_KINDS: MovementKind[] = ["transfer", "trade"];
 
+// Kinds the user may record manually from the Treasury page. `deposit` and
+// `withdraw` are intentionally excluded — incoming/outgoing money should be
+// entered on the Transactions page (as `client_payment`, `supplier_payment`,
+// `expense`, etc.) which spawns the deposit/withdraw movement automatically.
+// Treasury keeps only the wallet-internal operations: opening balances,
+// transfers between custody, asset trades, and corrective adjustments.
+export const RECORDABLE_MOVEMENT_KINDS: MovementKind[] = [
+  "opening",
+  "transfer",
+  "trade",
+  "adjustment",
+];
+
 export const ORTAK_TYPE_LABELS: Record<OrtakMovementType, string> = {
   partner_loan_in: "Partner loan in",
   partner_loan_out: "Partner loan out",

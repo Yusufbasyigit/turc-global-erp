@@ -34,7 +34,6 @@ import {
 import { Combobox } from "@/components/ui/combobox";
 import { cn } from "@/lib/utils";
 import {
-  MOVEMENT_KINDS,
   ORTAK_MOVEMENT_TYPES,
   type AccountWithCustody,
   type MovementKind,
@@ -49,12 +48,13 @@ import {
   createSingleLegMovement,
 } from "./mutations";
 import { treasuryKeys } from "./queries";
-import { todayDateString } from "./fx-utils";
+import { formatQuantity, todayDateString } from "./fx-utils";
 import {
   MOVEMENT_KIND_DESCRIPTIONS,
   MOVEMENT_KIND_LABELS,
   ORTAK_TYPE_LABELS,
   PAIRED_KINDS,
+  RECORDABLE_MOVEMENT_KINDS,
 } from "./constants";
 
 type StepId = "kind" | "accounts" | "details" | "ortak";
@@ -83,7 +83,7 @@ type MinimalValues = {
 };
 
 const defaultValues = (): MinimalValues => ({
-  kind: "deposit",
+  kind: "transfer",
   account_id: "",
   from_account_id: "",
   to_account_id: "",
@@ -146,6 +146,30 @@ export function RecordMovementDialog({
   const accountId = useWatch({ control: form.control, name: "account_id" });
   const fromAccountId = useWatch({ control: form.control, name: "from_account_id" });
   const toAccountId = useWatch({ control: form.control, name: "to_account_id" });
+  const quantityFromRaw = useWatch({ control: form.control, name: "quantity_from" });
+  const quantityToRaw = useWatch({ control: form.control, name: "quantity_to" });
+  const fromAssetCode = useWatch({ control: form.control, name: "from_asset_code" });
+  const toAssetCode = useWatch({ control: form.control, name: "to_asset_code" });
+
+  const tradeRatePreview = useMemo(() => {
+    if (kind !== "trade") return null;
+    const qFrom = Number(quantityFromRaw);
+    const qTo = Number(quantityToRaw);
+    if (
+      !Number.isFinite(qFrom) ||
+      !Number.isFinite(qTo) ||
+      qFrom <= 0 ||
+      qTo <= 0
+    ) {
+      return null;
+    }
+    const from = fromAssetCode || "source";
+    const to = toAssetCode || "destination";
+    return {
+      forward: `1 ${from} = ${formatQuantity(qTo / qFrom)} ${to}`,
+      inverse: `1 ${to} = ${formatQuantity(qFrom / qTo)} ${from}`,
+    };
+  }, [kind, quantityFromRaw, quantityToRaw, fromAssetCode, toAssetCode]);
 
   const accountById = useMemo(() => {
     const map = new Map<string, AccountWithCustody>();
@@ -296,7 +320,7 @@ export function RecordMovementDialog({
         <form onSubmit={handleFormSubmit} className="space-y-5">
           {currentStepId === "kind" ? (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {MOVEMENT_KINDS.map((k) => (
+              {RECORDABLE_MOVEMENT_KINDS.map((k) => (
                 <button
                   type="button"
                   key={k}
@@ -441,6 +465,23 @@ export function RecordMovementDialog({
                       {...form.register("quantity_to")}
                     />
                   </Field>
+                  {tradeRatePreview ? (
+                    <div className="md:col-span-2 rounded-md border bg-muted/30 p-3 text-sm">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Implied rate
+                      </div>
+                      <div className="mt-1 font-mono">
+                        {tradeRatePreview.forward}
+                      </div>
+                      <div className="font-mono text-muted-foreground">
+                        {tradeRatePreview.inverse}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="md:col-span-2 text-xs text-muted-foreground">
+                      Enter both quantities to see the implied exchange rate.
+                    </p>
+                  )}
                 </>
               ) : (
                 <Field
