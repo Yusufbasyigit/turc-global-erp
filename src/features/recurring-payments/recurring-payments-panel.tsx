@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format-money";
 
 import {
   listMonthlyOccurrences,
@@ -54,7 +55,7 @@ export function RecurringPaymentsButton() {
   const { year, month } = getCurrentPeriod();
 
   const countQ = useQuery({
-    queryKey: recurringPaymentKeys.pendingCount(),
+    queryKey: recurringPaymentKeys.pendingCount(year, month),
     queryFn: () => pendingCountForMonth(year, month),
   });
   const count = countQ.data ?? 0;
@@ -398,8 +399,12 @@ function TemplatesView({
                     {t.name}
                   </button>
                   <span className="ml-2 text-xs text-muted-foreground">
-                    Day {t.day_of_month} · {Number(t.expected_amount)}{" "}
-                    {t.currency} · {t.account?.account_name ?? "—"}
+                    Day {t.day_of_month} ·{" "}
+                    {formatCurrency(
+                      Number(t.expected_amount),
+                      t.currency,
+                    )}{" "}
+                    · {t.account?.account_name ?? "—"}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">

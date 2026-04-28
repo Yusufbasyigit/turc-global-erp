@@ -216,6 +216,13 @@ export async function markOccurrencePaid(
     .single();
   if (occErr) {
     // Roll back the transaction + its movement to keep state consistent.
+    // The treasury_movements.source_transaction_id FK is SET NULL on delete
+    // (not CASCADE), so deleting the transaction would leave an orphaned
+    // movement row that still affects accrual. Delete the movement first.
+    await supabase
+      .from("treasury_movements")
+      .delete()
+      .eq("source_transaction_id", txn.id);
     await supabase.from("transactions").delete().eq("id", txn.id);
     throw occErr;
   }

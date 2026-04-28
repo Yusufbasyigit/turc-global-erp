@@ -198,7 +198,7 @@ export function useOverdueInstallments(thresholdDays: number = 7) {
   }, [data, thresholdDays]);
 }
 
-function daysBetween(fromIso: string, toIso: string): number {
+export function daysBetween(fromIso: string, toIso: string): number {
   const a = Date.parse(fromIso);
   const b = Date.parse(toIso);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;

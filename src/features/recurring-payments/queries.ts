@@ -16,8 +16,8 @@ export const recurringPaymentKeys = {
     [...recurringPaymentKeys.all, "monthly", year, month] as const,
   history: (templateId: string) =>
     [...recurringPaymentKeys.all, "history", templateId] as const,
-  pendingCount: () =>
-    [...recurringPaymentKeys.all, "pendingCount"] as const,
+  pendingCount: (year: number, month: number) =>
+    [...recurringPaymentKeys.all, "pendingCount", year, month] as const,
 };
 
 export type RecurringPaymentWithRelations = RecurringPayment & {

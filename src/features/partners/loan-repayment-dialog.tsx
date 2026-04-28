@@ -100,7 +100,9 @@ export function LoanRepaymentDialog({
   const accountItems = useMemo(() => {
     if (!currency) return [];
     return accounts
-      .filter((a) => a.asset_code === currency)
+      .filter(
+        (a) => a.asset_code === currency && a.asset_type !== "credit_card",
+      )
       .map((a) => ({
         value: a.id,
         label: `${a.account_name} · ${a.custody_locations?.name ?? "—"}`,

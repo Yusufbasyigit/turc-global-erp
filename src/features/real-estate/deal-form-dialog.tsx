@@ -161,13 +161,23 @@ export function DealFormDialog({
     const each = Math.round((total / count) * 100) / 100;
     const remainder = Math.round((total - each * count) * 100) / 100;
     const baseStart = startDate || todayDateString();
+    const start = new Date(`${baseStart}T00:00:00`);
+    const startYear = start.getFullYear();
+    const startMonth = start.getMonth();
+    const startDay = start.getDate();
     const drafts: InstallmentDraft[] = [];
     for (let i = 0; i < count; i += 1) {
-      const d = new Date(`${baseStart}T00:00:00`);
-      d.setMonth(d.getMonth() + i);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
+      // Build month-by-month without mutating Date — setMonth() rolls over
+      // (e.g. Jan 31 + 1 month = Mar 3), which we don't want for monthly
+      // installments. Clamp the day to the last day of the target month.
+      const targetMonthIndex = startMonth + i;
+      const targetYear = startYear + Math.floor(targetMonthIndex / 12);
+      const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+      const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+      const day = Math.min(startDay, lastDay);
+      const yyyy = targetYear;
+      const mm = String(targetMonth + 1).padStart(2, "0");
+      const dd = String(day).padStart(2, "0");
       const amount = i === count - 1 ? each + remainder : each;
       drafts.push({
         key: newKey(),

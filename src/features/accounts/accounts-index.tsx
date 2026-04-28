@@ -470,8 +470,8 @@ function buildGroups(
       .sort((a, b) => a.label.localeCompare(b.label));
   }
 
-  // asset_type — explicit Fiat → Fund → Crypto → Metal order, then
-  // "Unclassified" for NULL asset_type.
+  // asset_type — explicit Fiat → Credit cards → Fund → Crypto → Metal order
+  // (matches ASSET_TYPE_ORDER above), then "Unclassified" for NULL asset_type.
   const buckets = new Map<string, AccountWithCustody[]>();
   for (const a of rows) {
     const key = a.asset_type ?? "_unknown";

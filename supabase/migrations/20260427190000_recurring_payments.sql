@@ -8,8 +8,8 @@
 -- Auto-creating a transaction is the app's job (mark-paid mutation creates
 -- the transaction and then the occurrence with transaction_id linked).
 --
--- Run this in the Supabase dashboard SQL editor. See the README for the
--- "manual SQL" convention used in this repo.
+-- Apply with `supabase db push` from the CLI (the standard workflow in
+-- CLAUDE.md). The CLI prompts for confirmation each time.
 
 -- 1. Templates.
 CREATE TABLE public.recurring_payments (

@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/format-money";
 import { formatDateOnly } from "@/lib/format-date";
 import { todayDateString } from "@/features/treasury/fx-utils";
-import { useDealStates, type DealState } from "./queries";
+import { daysBetween, useDealStates, type DealState } from "./queries";
 import { DealFormDialog } from "./deal-form-dialog";
 import {
   ReceiptFormDialog,
@@ -88,13 +88,6 @@ function PendingReceiptsStrip({
       ))}
     </div>
   );
-}
-
-function daysBetween(fromIso: string, toIso: string): number {
-  const a = Date.parse(fromIso);
-  const b = Date.parse(toIso);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
-  return Math.floor((b - a) / 86_400_000);
 }
 
 export function RealEstateIndex() {

@@ -206,6 +206,19 @@ export function RecurringPaymentFormDialog({
   const submitting = createMut.isPending || updateMut.isPending;
 
   const onSubmit = form.handleSubmit((values) => {
+    // Currency must match the source account's asset_code, otherwise
+    // mark-paid will fail server-side at assertAccountCurrencyMatches.
+    // Catch it pre-submit so the user gets a clear field-level error.
+    const account = (accountsQ.data ?? []).find(
+      (a) => a.id === values.account_id,
+    );
+    if (account && account.asset_code && account.asset_code !== values.currency) {
+      form.setError("currency", {
+        type: "manual",
+        message: `Currency must match the account's asset (${account.asset_code}).`,
+      });
+      return;
+    }
     if (isEdit) updateMut.mutate(values);
     else createMut.mutate(values);
   });
