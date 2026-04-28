@@ -27,7 +27,6 @@ export const profitLossKeys = {
 
 const REVENUE_KINDS: readonly TransactionKind[] = [
   "shipment_billing",
-  "order_billing",
   "other_income",
 ];
 
@@ -36,7 +35,6 @@ const REVENUE_KINDS: readonly TransactionKind[] = [
 // received via shipments is recognized at booking via `shipment_cogs`.
 const EXPENSE_KINDS: readonly TransactionKind[] = [
   "expense",
-  "other_expense",
   "shipment_cogs",
   "shipment_freight",
 ];
@@ -50,7 +48,7 @@ function isExpense(k: string): boolean {
 
 // Real estate has no billing event — the cash receipt IS the revenue moment.
 // Export-side `client_payment`s are intentionally excluded to avoid
-// double-counting against `order_billing` / `shipment_billing`.
+// double-counting against `shipment_billing`.
 function isRealEstateReceipt(t: TransactionWithRelations): boolean {
   if (t.kind !== "client_payment") return false;
   return t.real_estate_deal_id != null || t.revenue_source === "real_estate";
