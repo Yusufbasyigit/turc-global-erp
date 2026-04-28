@@ -377,6 +377,9 @@ export function TransactionFormDialog({
     selectedCustomer?.balance_currency &&
     selectedCustomer.balance_currency !== currency;
 
+  const [fxInputMode, setFxInputMode] = useState<"rate" | "converted">("rate");
+  const [convertedInput, setConvertedInput] = useState<string>("");
+
   const fxPreview = useMemo(() => {
     if (!showFxBlock) return null;
     const a = Number(amount);
@@ -392,6 +395,43 @@ export function TransactionFormDialog({
       form.setValue("fx_converted_amount", fxPreview, { shouldValidate: false });
     }
   }, [fxPreview, showFxBlock, form]);
+
+  // Reset the FX input mode whenever the FX block stops being relevant so
+  // reopening the dialog starts in "rate" mode with a clean converted input.
+  useEffect(() => {
+    if (showFxBlock) return;
+    setFxInputMode("rate");
+    setConvertedInput("");
+  }, [showFxBlock]);
+
+  // In converted-input mode, derive the rate from converted/amount and write
+  // it back into the form so validation + persistence still hang off the same
+  // fx_rate_applied field.
+  useEffect(() => {
+    if (!showFxBlock) return;
+    if (fxInputMode !== "converted") return;
+    const a = Number(amount);
+    const c = Number(convertedInput);
+    if (!Number.isFinite(a) || !Number.isFinite(c) || a <= 0 || c <= 0) {
+      form.setValue("fx_rate_applied", "" as unknown as number, {
+        shouldValidate: false,
+      });
+      return;
+    }
+    form.setValue("fx_rate_applied", c / a, { shouldValidate: false });
+  }, [convertedInput, amount, showFxBlock, fxInputMode, form]);
+
+  const switchFxMode = (next: "rate" | "converted") => {
+    if (next === fxInputMode) return;
+    if (next === "converted") {
+      setConvertedInput(
+        fxPreview != null ? Number(fxPreview.toFixed(4)).toString() : "",
+      );
+    } else {
+      setConvertedInput("");
+    }
+    setFxInputMode(next);
+  };
 
   const showVat = kind === "expense" || kind === "supplier_invoice";
   const vatComputed = useMemo(() => {
@@ -1434,34 +1474,86 @@ export function TransactionFormDialog({
 
               {showFxBlock ? (
                 <div className="md:col-span-2 space-y-3 rounded-md border bg-muted/30 p-3">
-                  <p className="text-xs text-muted-foreground">
-                    {currency} does not match client balance currency (
-                    {selectedCustomer?.balance_currency}). Enter the FX rate
-                    applied at payment time — it will be frozen on the
-                    transaction.
-                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      {currency} does not match client balance currency (
+                      {selectedCustomer?.balance_currency}). Fill in either the
+                      FX rate or the converted amount — the other is computed
+                      and frozen on the transaction.
+                    </p>
+                    <div className="inline-flex shrink-0 rounded-md border p-0.5 text-[11px]">
+                      {(["rate", "converted"] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => switchFxMode(m)}
+                          className={cn(
+                            "rounded px-2 py-1 capitalize",
+                            fxInputMode === m
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {m === "rate" ? "Enter rate" : "Enter converted"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Field
                       label={`FX rate (${currency} → ${selectedCustomer?.balance_currency})`}
-                      error={errMsg("fx_rate_applied")}
+                      error={
+                        fxInputMode === "rate"
+                          ? errMsg("fx_rate_applied")
+                          : undefined
+                      }
                     >
-                      <Input
-                        type="number"
-                        step="any"
-                        min="0"
-                        {...form.register("fx_rate_applied")}
-                      />
+                      {fxInputMode === "rate" ? (
+                        <Input
+                          type="number"
+                          step="any"
+                          min="0"
+                          {...form.register("fx_rate_applied")}
+                        />
+                      ) : (
+                        <Input
+                          value={
+                            Number.isFinite(Number(fxRate)) && Number(fxRate) > 0
+                              ? Number(fxRate).toFixed(6)
+                              : ""
+                          }
+                          readOnly
+                          className="bg-background"
+                          placeholder="—"
+                        />
+                      )}
                     </Field>
-                    <Field label="Converted amount (preview)">
-                      <Input
-                        value={
-                          fxPreview != null
-                            ? fxPreview.toFixed(4)
-                            : ""
-                        }
-                        readOnly
-                        className="bg-background"
-                      />
+                    <Field
+                      label={`Converted amount (${selectedCustomer?.balance_currency})`}
+                      error={
+                        fxInputMode === "converted"
+                          ? errMsg("fx_rate_applied")
+                          : undefined
+                      }
+                    >
+                      {fxInputMode === "converted" ? (
+                        <Input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={convertedInput}
+                          onChange={(e) => setConvertedInput(e.target.value)}
+                        />
+                      ) : (
+                        <Input
+                          value={
+                            fxPreview != null ? fxPreview.toFixed(4) : ""
+                          }
+                          readOnly
+                          className="bg-background"
+                          placeholder="—"
+                        />
+                      )}
                     </Field>
                   </div>
                 </div>
