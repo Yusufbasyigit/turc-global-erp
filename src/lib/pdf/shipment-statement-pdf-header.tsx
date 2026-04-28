@@ -2,6 +2,7 @@ import { Image, Text, View } from "@react-pdf/renderer";
 import { statementStyles } from "./shipment-statement-pdf-styles";
 import { formatOfferDateShort } from "@/lib/proforma/istanbul-date";
 import { pdfText } from "./text-encoding";
+import { PDF_BRAND_LOGO_SRC } from "./pdf-assets";
 import type { StatementData } from "./shipment-statement-pdf-types";
 
 export function ShipmentStatementPdfHeader({ data }: { data: StatementData }) {
@@ -9,7 +10,7 @@ export function ShipmentStatementPdfHeader({ data }: { data: StatementData }) {
     <View>
       <View style={statementStyles.brandBanner}>
         {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image is not a DOM img */}
-        <Image src="/logo.png" style={statementStyles.brandLogo} />
+        <Image src={PDF_BRAND_LOGO_SRC} style={statementStyles.brandLogo} />
       </View>
 
       <View style={statementStyles.letterhead}>
