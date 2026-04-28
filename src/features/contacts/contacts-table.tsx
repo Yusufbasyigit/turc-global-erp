@@ -19,15 +19,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ContactWithCountry } from "@/lib/supabase/types";
+import { formatCurrency } from "@/lib/format-money";
+import { cn } from "@/lib/utils";
 import { ContactTypeBadge } from "./type-badge";
 import { CountryFlag } from "./country-flag";
+import type { ContactBalance } from "./queries";
 
 export function ContactsTable({
   contacts,
+  balances,
   onEdit,
   onDelete,
 }: {
   contacts: ContactWithCountry[];
+  balances: Map<string, ContactBalance>;
   onEdit: (id: string) => void;
   onDelete: (id: string, name: string) => void;
 }) {
@@ -84,9 +89,8 @@ export function ContactsTable({
               <TableCell className="text-muted-foreground font-mono text-xs">
                 {c.balance_currency ?? "—"}
               </TableCell>
-              <TableCell className="text-right text-muted-foreground font-mono text-xs">
-                {/* TODO: wire to transactions module for running client balance */}
-                —
+              <TableCell className="text-right font-mono text-xs">
+                <BalanceCell balance={balances.get(c.id)} />
               </TableCell>
               <TableCell data-row-action>
                 <DropdownMenu>
@@ -123,5 +127,32 @@ export function ContactsTable({
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+function BalanceCell({ balance }: { balance: ContactBalance | undefined }) {
+  if (!balance || !balance.has_transactions) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  const isZero = Math.abs(balance.net_balance) < 0.005;
+  return (
+    <span
+      className={cn(
+        "tabular-nums",
+        isZero
+          ? "text-muted-foreground"
+          : balance.net_balance > 0
+            ? "text-foreground"
+            : "text-emerald-700",
+      )}
+      title={
+        balance.has_skipped
+          ? "Some transactions in another currency are excluded from this total."
+          : undefined
+      }
+    >
+      {formatCurrency(balance.net_balance, balance.currency)}
+      {balance.has_skipped ? <span className="ml-1 text-amber-700">*</span> : null}
+    </span>
   );
 }

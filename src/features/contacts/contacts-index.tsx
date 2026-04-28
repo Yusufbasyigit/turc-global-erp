@@ -27,7 +27,13 @@ import {
   type ContactWithCountry,
 } from "@/lib/supabase/types";
 import { CONTACT_TYPE_LABELS } from "@/lib/constants";
-import { contactKeys, listContacts, listDeletedContacts } from "./queries";
+import {
+  contactKeys,
+  listContactBalances,
+  listContacts,
+  listDeletedContacts,
+  type ContactBalance,
+} from "./queries";
 import { ContactsTable } from "./contacts-table";
 import { ContactsCardList } from "./contacts-card-list";
 import { ContactFormDialog } from "./contact-form-dialog";
@@ -64,6 +70,18 @@ export function ContactsIndex() {
     queryKey: contactKeys.list(),
     queryFn: listContacts,
   });
+
+  const { data: balanceList } = useQuery({
+    queryKey: contactKeys.balances(),
+    queryFn: listContactBalances,
+    enabled: view === "active",
+  });
+
+  const balances = useMemo(() => {
+    const map = new Map<string, ContactBalance>();
+    for (const b of balanceList ?? []) map.set(b.contact_id, b);
+    return map;
+  }, [balanceList]);
 
   const {
     data: deletedContacts,
@@ -200,6 +218,7 @@ export function ContactsIndex() {
             groupByCountry ? (
               <GroupedView
                 contacts={filtered}
+                balances={balances}
                 isMobile={isMobile}
                 onEdit={openEdit}
                 onDelete={openDelete}
@@ -207,12 +226,14 @@ export function ContactsIndex() {
             ) : isMobile ? (
               <ContactsCardList
                 contacts={filtered}
+                balances={balances}
                 onEdit={openEdit}
                 onDelete={openDelete}
               />
             ) : (
               <ContactsTable
                 contacts={filtered}
+                balances={balances}
                 onEdit={openEdit}
                 onDelete={openDelete}
               />
@@ -294,11 +315,13 @@ export function ContactsIndex() {
 
 function GroupedView({
   contacts,
+  balances,
   isMobile,
   onEdit,
   onDelete,
 }: {
   contacts: ContactWithCountry[];
+  balances: Map<string, ContactBalance>;
   isMobile: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string, name: string) => void;
@@ -334,6 +357,7 @@ function GroupedView({
           name={g.name}
           flag={g.flag}
           contacts={g.contacts}
+          balances={balances}
           isMobile={isMobile}
           onEdit={onEdit}
           onDelete={onDelete}
@@ -347,6 +371,7 @@ function CountryGroup({
   name,
   flag,
   contacts,
+  balances,
   isMobile,
   onEdit,
   onDelete,
@@ -354,6 +379,7 @@ function CountryGroup({
   name: string;
   flag: string;
   contacts: ContactWithCountry[];
+  balances: Map<string, ContactBalance>;
   isMobile: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string, name: string) => void;
@@ -383,12 +409,14 @@ function CountryGroup({
         isMobile ? (
           <ContactsCardList
             contacts={contacts}
+            balances={balances}
             onEdit={onEdit}
             onDelete={onDelete}
           />
         ) : (
           <ContactsTable
             contacts={contacts}
+            balances={balances}
             onEdit={onEdit}
             onDelete={onDelete}
           />
