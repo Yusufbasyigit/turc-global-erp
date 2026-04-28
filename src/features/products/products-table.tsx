@@ -22,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ProductWithRelations } from "@/lib/supabase/types";
 import { ActiveBadge } from "./active-badge";
+import { NeedsDetailsBadge, productNeedsDetails } from "./needs-details-badge";
 import { productImageUrl } from "./queries";
 
 function formatPrice(
@@ -127,7 +128,10 @@ export function ProductsTable({
                     : `${p.kdv_rate}%`}
                 </TableCell>
                 <TableCell>
-                  <ActiveBadge active={p.is_active} />
+                  <div className="flex flex-wrap items-center gap-1">
+                    <ActiveBadge active={p.is_active} />
+                    {productNeedsDetails(p) ? <NeedsDetailsBadge /> : null}
+                  </div>
                 </TableCell>
                 <TableCell data-row-action>
                   <DropdownMenu>
