@@ -103,11 +103,13 @@ export function RecordMovementDialog({
   onOpenChange,
   accounts,
   prefillAccountId,
+  defaultKind,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   accounts: AccountWithCustody[];
   prefillAccountId?: string;
+  defaultKind?: MovementKind;
 }) {
   const qc = useQueryClient();
   const [stepIndex, setStepIndex] = useState(0);
@@ -121,6 +123,7 @@ export function RecordMovementDialog({
   useEffect(() => {
     if (open) {
       const base = defaultValues();
+      if (defaultKind) base.kind = defaultKind;
       if (prefillAccountId) {
         // Single-leg uses account_id; paired (transfer/trade) uses
         // from_account_id. Default kind is "deposit" (single-leg) so we set
@@ -129,10 +132,13 @@ export function RecordMovementDialog({
         base.from_account_id = prefillAccountId;
       }
       form.reset(base as never);
+      // When the wizard hands off with a preselected kind (transfer/trade),
+      // skip the kind picker step. Back from accounts still lands on it so
+      // the user can switch if they need to.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStepIndex(0);
+      setStepIndex(defaultKind ? 1 : 0);
     }
-  }, [open, form, prefillAccountId]);
+  }, [open, form, prefillAccountId, defaultKind]);
 
   const kind = useWatch({ control: form.control, name: "kind" }) as MovementKind;
   const isPaired = PAIRED_KINDS.includes(kind);

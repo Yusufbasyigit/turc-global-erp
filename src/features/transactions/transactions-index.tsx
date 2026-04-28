@@ -63,6 +63,8 @@ import {
   TransactionFormDialog,
   type TransactionPrefill,
 } from "./transaction-form-dialog";
+import { RecordMovementDialog } from "@/features/treasury/record-movement-dialog";
+import type { MovementKind } from "@/lib/supabase/types";
 import { RecurringPaymentsButton } from "@/features/recurring-payments/recurring-payments-panel";
 
 const PARTNER_BADGE_CLASSES =
@@ -97,6 +99,9 @@ export function TransactionsIndex() {
   const [editing, setEditing] =
     useState<TransactionWithRelations | null>(null);
   const [prefill, setPrefill] = useState<TransactionPrefill | null>(null);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveDefaultKind, setMoveDefaultKind] =
+    useState<MovementKind>("transfer");
   const prefillConsumedRef = useRef(false);
   const [kindFilter, setKindFilter] = useState<Set<TransactionKind>>(
     () => new Set(),
@@ -646,6 +651,17 @@ export function TransactionsIndex() {
         accounts={accounts}
         transaction={editing}
         prefill={prefill}
+        onMoveMoney={(kind) => {
+          setMoveDefaultKind(kind);
+          setMoveOpen(true);
+        }}
+      />
+
+      <RecordMovementDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        accounts={accounts}
+        defaultKind={moveDefaultKind}
       />
     </div>
     </TooltipProvider>

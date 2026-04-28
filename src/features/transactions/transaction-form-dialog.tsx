@@ -192,12 +192,14 @@ export function TransactionFormDialog({
   accounts,
   transaction,
   prefill,
+  onMoveMoney,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   accounts: AccountWithCustody[];
   transaction?: TransactionWithRelations | null;
   prefill?: TransactionPrefill | null;
+  onMoveMoney?: (kind: "transfer" | "trade") => void;
 }) {
   const qc = useQueryClient();
   const isEdit = Boolean(transaction);
@@ -206,6 +208,7 @@ export function TransactionFormDialog({
   type KindView =
     | { level: "categories" }
     | { level: "sub"; category: KindCategoryId }
+    | { level: "move" }
     | {
         level: "kinds";
         category: KindCategoryId;
@@ -426,6 +429,55 @@ export function TransactionFormDialog({
     }
   }, [kind, relatedPayableId, unpaidInvoices, form]);
 
+  // Pre-fill the expense category with `Uncategorized` so a fresh expense
+  // has a valid required category by default. Edit mode keeps the saved
+  // category. The user can change the picker before saving but cannot leave
+  // it blank (schema requires it).
+  useEffect(() => {
+    if (isEdit) return;
+    if (kind !== "expense") return;
+    if (form.getValues("expense_type_id")) return;
+    const uncategorized = expenseTypes.find((e) => e.name === "Uncategorized");
+    if (!uncategorized) return;
+    form.setValue("expense_type_id", uncategorized.id, { shouldDirty: false });
+  }, [isEdit, kind, expenseTypes, form]);
+
+  // For kinds without an FX block, the transaction currency must match the
+  // chosen account's currency. Default the field when the account is picked
+  // so the operator doesn't have to remember to change it (and doesn't trip
+  // the "Account currency does not match transaction currency" guard).
+  const toAccountId = useWatch({ control: form.control, name: "to_account_id" });
+  const fromAccountId = useWatch({ control: form.control, name: "from_account_id" });
+  useEffect(() => {
+    const KINDS_WITHOUT_FX_BLOCK: TransactionKind[] = [
+      "other_income",
+      "expense",
+      "tax_payment",
+      "partner_loan_in",
+      "partner_loan_out",
+      "profit_distribution",
+      "client_refund",
+    ];
+    if (!KINDS_WITHOUT_FX_BLOCK.includes(kind)) return;
+    const accountId =
+      kind === "other_income" || kind === "partner_loan_in"
+        ? toAccountId
+        : fromAccountId;
+    if (!accountId) return;
+    const picked = accounts.find((a) => a.id === accountId);
+    if (!picked?.asset_code) return;
+    if (
+      (BALANCE_CURRENCIES as readonly string[]).includes(picked.asset_code) &&
+      picked.asset_code !== currency
+    ) {
+      form.setValue(
+        "currency",
+        picked.asset_code as MinimalValues["currency"],
+        { shouldValidate: false },
+      );
+    }
+  }, [kind, toAccountId, fromAccountId, accounts, currency, form]);
+
   const visibleSteps = useMemo<StepId[]>(() => {
     const base: StepId[] = ["kind", "parties", "details"];
     if (showVat) base.push("vat");
@@ -527,7 +579,6 @@ export function TransactionFormDialog({
           : ["expense_type_id", "partner_id"];
       }
       if (kind === "other_income") return ["to_account_id"];
-      if (kind === "other_expense") return ["from_account_id"];
       if (kind === "supplier_invoice") return ["contact_id"];
       if (kind === "supplier_payment")
         return ["contact_id", "from_account_id"];
@@ -569,7 +620,7 @@ export function TransactionFormDialog({
         }
         return;
       }
-      if (kindView.level === "sub") {
+      if (kindView.level === "sub" || kindView.level === "move") {
         setKindView({ level: "categories" });
         return;
       }
@@ -733,6 +784,60 @@ export function TransactionFormDialog({
                       </button>
                     );
                   })}
+                  {onMoveMoney ? (
+                    <button
+                      type="button"
+                      onClick={() => setKindView({ level: "move" })}
+                      className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50"
+                    >
+                      <div className="text-sm font-medium">Move money</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        Between your own accounts.
+                      </div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">
+                        2 options
+                      </div>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {kindView.level === "move" ? (
+                <div className="space-y-3">
+                  <div className="text-xs text-muted-foreground">Move money</div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onMoveMoney?.("transfer");
+                        handleOpenChange(false);
+                      }}
+                      className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50"
+                    >
+                      <div className="text-sm font-medium">
+                        Transfer (same asset)
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        Same currency / asset on both sides — e.g. USD bank to
+                        USD bank, or Kasa to Şirket.
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onMoveMoney?.("trade");
+                        handleOpenChange(false);
+                      }}
+                      className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50"
+                    >
+                      <div className="text-sm font-medium">
+                        Trade (different assets)
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        Currency conversion or asset swap — e.g. USD → TRY.
+                      </div>
+                    </button>
+                  </div>
                 </div>
               ) : null}
 
@@ -1040,28 +1145,6 @@ export function TransactionFormDialog({
                 >
                   <Controller
                     name="to_account_id"
-                    control={form.control}
-                    render={({ field }) => (
-                      <Combobox
-                        items={accountItems}
-                        value={field.value || null}
-                        onChange={(v) => field.onChange(v ?? "")}
-                        placeholder="Pick an account"
-                        searchPlaceholder="Search…"
-                        emptyMessage="No accounts."
-                      />
-                    )}
-                  />
-                </Field>
-              ) : null}
-
-              {kind === "other_expense" ? (
-                <Field
-                  label="From account *"
-                  error={errMsg("from_account_id")}
-                >
-                  <Controller
-                    name="from_account_id"
                     control={form.control}
                     render={({ field }) => (
                       <Combobox
@@ -1597,14 +1680,6 @@ function buildInsertPayload(
         ...common,
         to_account_id: v.to_account_id,
         from_account_id: null,
-        contact_id: null,
-        partner_id: null,
-      };
-    case "other_expense":
-      return {
-        ...common,
-        from_account_id: v.from_account_id,
-        to_account_id: null,
         contact_id: null,
         partner_id: null,
       };

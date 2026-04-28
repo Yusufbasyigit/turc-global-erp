@@ -68,6 +68,9 @@ import { AccountFormDialog } from "./account-form-dialog";
 export function AccountDetail({ accountId }: { accountId: string }) {
   const [editOpen, setEditOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [moveDefaultKind, setMoveDefaultKind] = useState<
+    MovementKind | undefined
+  >(undefined);
   const [txnOpen, setTxnOpen] = useState(false);
 
   const accountQ = useQuery({
@@ -330,9 +333,13 @@ export function AccountDetail({ accountId }: { accountId: string }) {
 
       <RecordMovementDialog
         open={moveOpen}
-        onOpenChange={setMoveOpen}
+        onOpenChange={(v) => {
+          setMoveOpen(v);
+          if (!v) setMoveDefaultKind(undefined);
+        }}
         accounts={accountsQ.data ?? []}
         prefillAccountId={accountId}
+        defaultKind={moveDefaultKind}
       />
 
       <TransactionFormDialog
@@ -340,6 +347,10 @@ export function AccountDetail({ accountId }: { accountId: string }) {
         onOpenChange={setTxnOpen}
         accounts={accountsQ.data ?? []}
         prefill={txnPrefill}
+        onMoveMoney={(kind) => {
+          setMoveDefaultKind(kind);
+          setMoveOpen(true);
+        }}
       />
     </div>
   );
