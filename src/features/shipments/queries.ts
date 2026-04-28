@@ -4,7 +4,9 @@ import {
   SHIPMENT_INVOICE_BUCKET,
 } from "@/lib/constants";
 import type {
+  OrderStatus,
   Shipment,
+  ShipmentStatus,
   ShipmentWithRelations,
 } from "@/lib/supabase/types";
 import {
@@ -137,6 +139,42 @@ export async function getShipment(
   if (error) throw error;
   if (!data) return null;
   return { ...(data as unknown as ShipmentWithRelations), order_count: 0 };
+}
+
+export type ShipmentCascadePreviewOrder = {
+  order_id: string;
+  customer_name: string;
+  current_status: OrderStatus;
+  new_status: OrderStatus;
+};
+
+// Lists the orders whose status would flip if the shipment advanced to
+// `to`. Mirrors the cascade logic in advanceShipmentStatus — only the
+// booked → in_transit transition currently touches orders (accepted /
+// in_production → shipped). All other transitions return [].
+export async function previewShipmentCascade(input: {
+  shipment_id: string;
+  to: ShipmentStatus;
+}): Promise<ShipmentCascadePreviewOrder[]> {
+  if (input.to !== "in_transit") return [];
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select(
+      "id, status, customer:contacts!orders_customer_id_fkey(company_name)",
+    )
+    .eq("shipment_id", input.shipment_id)
+    .in("status", ["accepted", "in_production"]);
+  if (error) throw error;
+  return (data ?? []).map((o) => {
+    const customer = o.customer as { company_name?: string | null } | null;
+    return {
+      order_id: o.id,
+      customer_name: customer?.company_name ?? "—",
+      current_status: o.status as OrderStatus,
+      new_status: "shipped" as OrderStatus,
+    };
+  });
 }
 
 export async function listDraftShipmentsForCustomer(

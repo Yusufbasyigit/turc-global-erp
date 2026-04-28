@@ -33,14 +33,17 @@ import {
 } from "./constants";
 import {
   getShipment,
+  previewShipmentCascade,
   shipmentDocumentSignedUrl,
   shipmentKeys,
+  type ShipmentCascadePreviewOrder,
 } from "./queries";
 import {
   advanceShipmentStatus,
   updateShipment,
 } from "./mutations";
 import { transactionKeys } from "@/features/transactions/queries";
+import { AdvanceShipmentDialog } from "./advance-shipment-dialog";
 import { ShipmentFormDialog } from "./shipment-form-dialog";
 import { ShipmentBillingCard } from "./shipment-billing-card";
 import { ShipmentCapacityCard } from "./shipment-capacity-card";
@@ -81,6 +84,10 @@ function formatMoney(n: number): string {
 export function ShipmentDetail({ id }: { id: string }) {
   const qc = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
+  const [pendingAdvance, setPendingAdvance] = useState<{
+    to: ShipmentStatus;
+    orders: ShipmentCascadePreviewOrder[];
+  } | null>(null);
 
   const shipmentQ = useQuery({
     queryKey: shipmentKeys.detail(id),
@@ -137,6 +144,7 @@ export function ShipmentDetail({ id }: { id: string }) {
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: shipmentKeys.all });
       qc.invalidateQueries({ queryKey: transactionKeys.all });
+      qc.invalidateQueries({ queryKey: orderKeys.all });
       const status = result.shipment.status as ShipmentStatus;
       if (status === "booked" && result.billingAmount !== undefined) {
         toast.success(
@@ -152,6 +160,22 @@ export function ShipmentDetail({ id }: { id: string }) {
         toast.success(
           `Moved to ${SHIPMENT_STATUS_LABELS[status] ?? status}`,
         );
+      }
+      setPendingAdvance(null);
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Failed"),
+  });
+
+  const previewAdvanceMut = useMutation({
+    mutationFn: async (to: ShipmentStatus) => ({
+      to,
+      orders: await previewShipmentCascade({ shipment_id: id, to }),
+    }),
+    onSuccess: ({ to, orders }) => {
+      if (orders.length === 0) {
+        advanceMut.mutate(to);
+      } else {
+        setPendingAdvance({ to, orders });
       }
     },
     onError: (e: Error) => toast.error(e.message ?? "Failed"),
@@ -247,8 +271,8 @@ export function ShipmentDetail({ id }: { id: string }) {
           {nextStatus ? (
             <Button
               size="sm"
-              onClick={() => advanceMut.mutate(nextStatus)}
-              disabled={advanceMut.isPending}
+              onClick={() => previewAdvanceMut.mutate(nextStatus)}
+              disabled={previewAdvanceMut.isPending || advanceMut.isPending}
             >
               <ArrowRight className="mr-1 size-3.5" />
               Advance to {SHIPMENT_STATUS_LABELS[nextStatus]}
@@ -431,6 +455,20 @@ export function ShipmentDetail({ id }: { id: string }) {
         onOpenChange={setEditOpen}
         shipment={shipment}
       />
+
+      {pendingAdvance ? (
+        <AdvanceShipmentDialog
+          open
+          onOpenChange={(v) => {
+            if (!v) setPendingAdvance(null);
+          }}
+          shipmentId={id}
+          to={pendingAdvance.to}
+          affectedOrders={pendingAdvance.orders}
+          onConfirm={() => advanceMut.mutate(pendingAdvance.to)}
+          isPending={advanceMut.isPending}
+        />
+      ) : null}
     </div>
   );
 }
