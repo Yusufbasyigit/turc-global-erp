@@ -90,12 +90,6 @@ export const transactionSchema = z
       to_account_id: requiredString("Pick a destination account"),
       ...commonFields,
     }),
-    // WAVE 1 — other_expense
-    z.object({
-      kind: z.literal("other_expense"),
-      from_account_id: requiredString("Pick a source account"),
-      ...commonFields,
-    }),
     // WAVE 2 — supplier_invoice (accrual, spawns no movement)
     z.object({
       kind: z.literal("supplier_invoice"),
@@ -144,13 +138,6 @@ export const transactionSchema = z
         .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use YYYY-MM")
         .optional()
         .or(z.literal("")),
-      ...commonFields,
-    }),
-    // DISABLED (still defined so TRANSACTION_KINDS stays exhaustive) — order_billing
-    z.object({
-      kind: z.literal("order_billing"),
-      contact_id: z.string().optional().default(""),
-      related_order_id: z.string().optional().default(""),
       ...commonFields,
     }),
   ])

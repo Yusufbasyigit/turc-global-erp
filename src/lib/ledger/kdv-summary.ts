@@ -22,7 +22,6 @@ export const VAT_COLLECTED_KINDS: readonly TransactionKind[] = [
 export const VAT_PAID_KINDS: readonly TransactionKind[] = [
   "supplier_invoice",
   "expense",
-  "other_expense",
 ];
 
 export type KdvInputTxn = {

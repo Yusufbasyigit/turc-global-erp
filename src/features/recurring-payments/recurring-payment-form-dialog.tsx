@@ -57,7 +57,6 @@ import {
 
 const KIND_OPTIONS: { value: RecurringPaymentFormOutput["kind"]; label: string }[] = [
   { value: "expense", label: "Expense" },
-  { value: "other_expense", label: "Other expense" },
   { value: "supplier_payment", label: "Supplier payment" },
   { value: "tax_payment", label: "Tax payment" },
 ];

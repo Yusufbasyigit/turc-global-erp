@@ -50,7 +50,6 @@ export const recurringPaymentFormSchema = z
     description: optionalText(200),
     kind: z.enum([
       "expense",
-      "other_expense",
       "supplier_payment",
       "tax_payment",
     ]),

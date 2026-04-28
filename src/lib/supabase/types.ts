@@ -181,12 +181,10 @@ export const TRANSACTION_KINDS = [
   "supplier_invoice",
   "expense",
   "other_income",
-  "other_expense",
   "partner_loan_in",
   "partner_loan_out",
   "profit_distribution",
   "tax_payment",
-  "order_billing",
   "shipment_billing",
   "shipment_cogs",
   "shipment_freight",
@@ -220,12 +218,10 @@ export const WAVE_1_KINDS = [
   "client_refund",
   "expense",
   "other_income",
-  "other_expense",
 ] as const satisfies readonly TransactionKind[];
 export type Wave1Kind = (typeof WAVE_1_KINDS)[number];
 
 export const DISABLED_KINDS = [
-  "order_billing",
   "shipment_billing",
   "shipment_cogs",
   "shipment_freight",
