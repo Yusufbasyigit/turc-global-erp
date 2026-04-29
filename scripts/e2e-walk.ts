@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/client";
 import { AUTH_DISABLED } from "@/lib/auth-mode";
 
-import { createContact, deleteContact } from "@/features/contacts/mutations";
+import { createContact } from "@/features/contacts/mutations";
 import {
   createProduct,
   deleteProduct,
@@ -36,10 +36,7 @@ import {
   createShipment,
   advanceShipmentStatus,
 } from "@/features/shipments/mutations";
-import {
-  computeShipmentTotal,
-  findShipmentBillingTransaction,
-} from "@/features/shipments/billing";
+import { findShipmentBillingTransaction } from "@/features/shipments/billing";
 import { createTransaction } from "@/features/transactions/mutations";
 import {
   createAccountWithOpening,
@@ -105,11 +102,6 @@ function todayDate() {
 }
 function pad(n: number) {
   return n.toString().padStart(2, "0");
-}
-function tomorrowDate(): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
 }
 function dayPlus(daysFromToday: number): string {
   const d = new Date();
@@ -349,16 +341,6 @@ async function assembleStatementCompat(shipmentId: string) {
       balance: grandTotal - totalReceived,
     } as unknown as Awaited<ReturnType<typeof assembleShipmentStatementData>>;
   }
-}
-
-function errToStringRaw(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  if (e && typeof e === "object") {
-    const o = e as Record<string, unknown>;
-    if (o.message) return String(o.message);
-    return JSON.stringify(o);
-  }
-  return String(e);
 }
 
 function errToString(e: unknown): string {

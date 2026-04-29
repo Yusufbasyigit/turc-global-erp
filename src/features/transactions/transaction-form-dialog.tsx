@@ -161,19 +161,6 @@ async function listSupplierContacts(): Promise<
   return data ?? [];
 }
 
-async function listAllContacts(): Promise<
-  Pick<Contact, "id" | "company_name">[]
-> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("contacts")
-    .select("id, company_name")
-    .is("deleted_at", null)
-    .order("company_name", { ascending: true });
-  if (error) throw error;
-  return data ?? [];
-}
-
 export type TransactionPrefill = {
   kind?: TransactionKind;
   partner_id?: string;
@@ -331,13 +318,6 @@ export function TransactionFormDialog({
     enabled: open,
   });
 
-  const { data: allContacts = [] } = useQuery({
-    queryKey: ["contacts", "all"],
-    queryFn: listAllContacts,
-    staleTime: 60_000,
-    enabled: open,
-  });
-
   const kind = useWatch({ control: form.control, name: "kind" }) as TransactionKind;
   const currency = useWatch({ control: form.control, name: "currency" });
   const amount = useWatch({ control: form.control, name: "amount" });
@@ -345,7 +325,6 @@ export function TransactionFormDialog({
   const vatRate = useWatch({ control: form.control, name: "vat_rate" });
   const paidBy = useWatch({ control: form.control, name: "paid_by" });
   const contactId = useWatch({ control: form.control, name: "contact_id" });
-  const partnerId = useWatch({ control: form.control, name: "partner_id" });
   const relatedPayableId = useWatch({
     control: form.control,
     name: "related_payable_id",
@@ -575,14 +554,6 @@ export function TransactionFormDialog({
   const expenseTypeItems = useMemo(
     () => expenseTypes.map((e) => ({ value: e.id, label: e.name })),
     [expenseTypes],
-  );
-
-  const allContactItems = useMemo(
-    () =>
-      allContacts
-        .filter((c) => c.company_name)
-        .map((c) => ({ value: c.id, label: c.company_name as string })),
-    [allContacts],
   );
 
   const unpaidInvoiceItems = useMemo(

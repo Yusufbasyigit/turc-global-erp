@@ -927,7 +927,7 @@ async function case05(): Promise<Result> {
     );
   }
   const custody = await pickCustodyLocation();
-  const customer = await makeContact({
+  await makeContact({
     type: "customer",
     balance_currency: "EUR",
     company_name: "Edge Cust 5",

@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import type { AccountWithCustody, MovementKind } from "@/lib/supabase/types";
+import type { MovementKind } from "@/lib/supabase/types";
 
 import {
   computeBalanceMap,
