@@ -248,6 +248,39 @@ export function OrderFormDialog({
     [suppliers],
   );
 
+  // Index of products grouped by their default supplier, so each line's
+  // Product picker can show only the chosen supplier's products without
+  // re-walking `products` per line. Products with no default_supplier are
+  // intentionally excluded — they only show when no supplier filter is set.
+  const productItemsBySupplier = useMemo(() => {
+    const map = new Map<string, { value: string; label: string }[]>();
+    for (const p of products) {
+      if (!p.product_name || !p.default_supplier) continue;
+      const list = map.get(p.default_supplier) ?? [];
+      list.push({ value: p.product_id, label: p.product_name });
+      map.set(p.default_supplier, list);
+    }
+    return map;
+  }, [products]);
+
+  // Per-line product items: if the line has a supplier picked, restrict to
+  // that supplier's products; if the line's already-selected product isn't
+  // in that subset (e.g. user changed the supplier override), prepend it
+  // so the Combobox can still render its label.
+  const productItemsPerLine = useMemo(() => {
+    return (watchLines ?? []).map((l) => {
+      const supplierId = l?.supplier_id ?? null;
+      const productId = l?.product_id ?? "";
+      if (!supplierId) return productItems;
+      const filtered = productItemsBySupplier.get(supplierId) ?? [];
+      if (productId && !filtered.some((i) => i.value === productId)) {
+        const current = productItems.find((i) => i.value === productId);
+        if (current) return [current, ...filtered];
+      }
+      return filtered;
+    });
+  }, [watchLines, productItems, productItemsBySupplier]);
+
   const applyProductToLine = (lineIdx: number, productId: string) => {
     const product = products.find((p) => p.product_id === productId);
     if (!product) return;
@@ -576,7 +609,9 @@ export function OrderFormDialog({
                               control={form.control}
                               render={({ field }) => (
                                 <Combobox
-                                  items={productItems}
+                                  items={
+                                    productItemsPerLine[idx] ?? productItems
+                                  }
                                   value={field.value}
                                   onChange={(v) => {
                                     if (v) applyProductToLine(idx, v);
