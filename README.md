@@ -40,13 +40,27 @@ src/
 ├── app/
 │   ├── (app)/              # Authenticated routes (sidebar shell)
 │   │   ├── layout.tsx      # Auth-guarded layout with sidebar
-│   │   └── <module>/page.tsx   # One per ERP module (9 total)
+│   │   └── <module>/page.tsx   # One per ERP module
 │   ├── login/page.tsx      # Magic-link sign-in
 │   ├── auth/
 │   │   ├── callback/route.ts   # Exchanges code → session
 │   │   └── signout/route.ts    # POST to sign out
 │   ├── layout.tsx          # Root layout, fonts, Toaster
 │   └── page.tsx            # Redirects to /dashboard
+├── features/               # Feature-keyed code (queries, mutations, UI)
+│   ├── accounts/           # Treasury sub-views per account
+│   ├── contacts/           # Customers + suppliers (shared `contacts` table)
+│   ├── dashboard/
+│   ├── orders/             # Sales orders + proforma
+│   ├── partners/           # Partner equity, loans, reimbursements
+│   ├── products/
+│   ├── profit-loss/
+│   ├── real-estate/        # Apr 2026: rentals + sales (second business line)
+│   ├── recurring-payments/
+│   ├── shipments/          # Logistics + billing
+│   ├── tax/                # KDV
+│   ├── transactions/
+│   └── treasury/           # Custody locations, accounts, FX, prices
 ├── components/
 │   ├── ui/                 # shadcn components (copied, editable)
 │   ├── app-sidebar.tsx     # Main nav
@@ -54,9 +68,11 @@ src/
 │   ├── login-form.tsx      # Client component for magic link
 │   └── coming-soon.tsx     # Empty state used by module placeholders
 ├── lib/
-│   ├── supabase/
-│   │   ├── server.ts       # Server-component / route-handler client
-│   │   └── client.ts       # Browser client
+│   ├── supabase/           # Server + browser clients, shared types
+│   ├── ledger/             # FIFO allocation, KDV summary, partner reimbursement
+│   ├── pdf/                # @react-pdf/renderer documents (French export docs)
+│   ├── proforma/
+│   ├── shipments/
 │   └── utils.ts            # cn() from shadcn
 ├── types/database.ts       # Generated from Supabase schema (committed)
 └── proxy.ts                # Session refresh + auth gate (see note below)
@@ -143,6 +159,8 @@ After that, magic links land on the right app in both dev and prod.
 | `npm run build` | Production build |
 | `npm run start` | Run the production build locally |
 | `npm run lint` | ESLint |
+| `npm run lint:fix` | ESLint with autofix |
+| `npm run typecheck` | `tsc --noEmit` over the whole project |
 | `npm run db:types` | Regenerate `src/types/database.ts` from the live Supabase schema |
 
 ## Database migrations
