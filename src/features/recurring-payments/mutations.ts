@@ -10,6 +10,7 @@ import type {
   TransactionInsert,
 } from "@/lib/supabase/types";
 import { spawnMovementFromTransaction } from "@/features/transactions/mutations";
+import { KIND_SPAWN_DIRECTION } from "@/features/transactions/constants";
 
 import type { RecurringPaymentFormOutput } from "./schema";
 
@@ -162,9 +163,19 @@ export async function markOccurrencePaid(
   const monthLabel = monthLabelFor(input.year, input.month);
   const description = `${template.name} — ${monthLabel}`;
 
-  // For 'expense' kind: the form stores paid_by; recurring payments are
-  // always paid by the business (no partner concept here). For other
-  // kinds, the from/to_account routing matches the kind direction.
+  // Route the account by kind direction: deposit kinds (client_payment,
+  // other_income, partner_loan_in) need to_account_id; withdraw kinds need
+  // from_account_id. Setting the wrong field made spawnMovementFromTransaction
+  // silently no-op, recording the transaction without touching the balance.
+  const direction =
+    KIND_SPAWN_DIRECTION[template.kind as keyof typeof KIND_SPAWN_DIRECTION];
+  const accountFields: Pick<TransactionInsert, "from_account_id" | "to_account_id"> =
+    direction === "deposit"
+      ? { to_account_id: template.account_id }
+      : direction === "withdraw"
+        ? { from_account_id: template.account_id }
+        : {};
+
   const txnPayload: TransactionInsert = {
     transaction_date: input.paidDate,
     kind: template.kind as TransactionInsert["kind"],
@@ -173,7 +184,7 @@ export async function markOccurrencePaid(
     description,
     contact_id: template.contact_id,
     expense_type_id: template.expense_type_id,
-    from_account_id: template.account_id,
+    ...accountFields,
     created_by: userId,
     created_time: now,
     edited_by: userId,

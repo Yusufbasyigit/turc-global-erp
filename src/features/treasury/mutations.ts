@@ -134,6 +134,29 @@ export async function createPairedMovement(input: {
   const now = new Date().toISOString();
   const cleanNotes = input.notes?.trim() ? input.notes.trim() : null;
 
+  // A "transfer" moves the same asset between custody locations, so both
+  // legs must hold matching currencies and quantities. Without this guard,
+  // a USD→EUR transfer silently corrupts SUM(quantity) on both accounts.
+  // "trade" intentionally crosses assets, so the same guard does not apply.
+  if (input.kind === "transfer") {
+    const { data: accts, error: acctErr } = await supabase
+      .from("accounts")
+      .select("id, asset_code")
+      .in("id", [input.from_account_id, input.to_account_id]);
+    if (acctErr) throw acctErr;
+    const from = accts?.find((a) => a.id === input.from_account_id);
+    const to = accts?.find((a) => a.id === input.to_account_id);
+    if (!from || !to) throw new Error("Account not found");
+    if (from.asset_code !== to.asset_code) {
+      throw new Error(
+        `Transfer requires matching currencies — from holds ${from.asset_code}, to holds ${to.asset_code}. Use a trade for cross-asset moves.`,
+      );
+    }
+    if (Math.abs(input.quantity_from) !== Math.abs(input.quantity_to)) {
+      throw new Error("Transfer quantities must match (same asset).");
+    }
+  }
+
   const rows: TreasuryMovementInsert[] = [
     {
       account_id: input.from_account_id,

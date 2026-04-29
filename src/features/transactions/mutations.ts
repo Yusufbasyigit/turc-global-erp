@@ -86,17 +86,34 @@ function movementFieldsFromTransaction(
   kind: "deposit" | "withdraw";
 } {
   const direction = KIND_SPAWN_DIRECTION[txn.kind as keyof typeof KIND_SPAWN_DIRECTION];
-  if (!direction) return null;
+  if (!direction) return null; // accrual kind — correctly no movement
+  // Partner-paid expense is the only "direction set, no account" case that
+  // is legitimate: a partner paid out of pocket, so the business treasury
+  // is untouched. All other cash kinds require the matching account.
+  if (txn.kind === "expense" && txn.partner_id && !txn.from_account_id) {
+    return null;
+  }
   const amount = Number(txn.amount);
+  // Direction is set and a treasury account is required. Returning null
+  // here would silently drop the treasury movement; throw instead so any
+  // caller that bypasses the form schema fails loudly.
   if (direction === "deposit") {
-    if (!txn.to_account_id) return null;
+    if (!txn.to_account_id) {
+      throw new Error(
+        `Transaction ${txn.id} (${txn.kind}) is missing to_account_id; cannot spawn deposit movement.`,
+      );
+    }
     return {
       account_id: txn.to_account_id,
       quantity: Math.abs(amount),
       kind: "deposit",
     };
   }
-  if (!txn.from_account_id) return null;
+  if (!txn.from_account_id) {
+    throw new Error(
+      `Transaction ${txn.id} (${txn.kind}) is missing from_account_id; cannot spawn withdraw movement.`,
+    );
+  }
   return {
     account_id: txn.from_account_id,
     quantity: -Math.abs(amount),
