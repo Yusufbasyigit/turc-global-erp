@@ -77,7 +77,7 @@ export function ShipmentBillingBreakdown({
       </div>
 
       {fifo.skipped_events.length > 0 ? (
-        <div className="flex items-start gap-2 rounded-md border border-amber-700 bg-amber-950 p-2 text-[11px] text-amber-200">
+        <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-900">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
           <span>
             {fifo.skipped_events.length} ledger event(s) skipped (no frozen FX

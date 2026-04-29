@@ -139,7 +139,7 @@ function ShipmentBillingCardImpl({
       </div>
 
       {isStale ? (
-        <div className="mt-3 rounded-md border border-amber-700 bg-amber-950 p-2 text-xs text-amber-200">
+        <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
           Billing amount is stale (ledger shows{" "}
           {formatMoney(billedAmount ?? 0)} {txn?.currency}, live total is{" "}
           {formatMoney(liveTotal)} {currency}). Advance to &quot;in transit&quot;

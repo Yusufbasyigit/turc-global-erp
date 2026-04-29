@@ -33,7 +33,7 @@ export const SHIPMENT_LIFECYCLE: readonly ShipmentStatus[] = [
   "arrived",
 ] as const;
 
-export const CONTAINER_TYPE_OPTIONS = ["20DC", "40HC", "40RF"] as const;
+export const CONTAINER_TYPE_OPTIONS = ["20DC", "40DC", "40HC", "40RF"] as const;
 
 export const TRANSPORT_METHOD_LABELS: Record<string, string> = {
   sea: "Sea",

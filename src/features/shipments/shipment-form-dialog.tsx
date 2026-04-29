@@ -169,27 +169,37 @@ export function ShipmentFormDialog({
     enabled: Boolean(watchCustomer) && !isEdit,
   });
 
-  // Default invoice_currency from customer balance_currency.
-  const didAutoCurrencyRef = useRef(false);
+  // Default invoice_currency from customer balance_currency. Tracks the
+  // customer the auto-set was applied to so switching customer re-runs.
+  const autoCurrencyForRef = useRef<string | null>(null);
   useEffect(() => {
     if (isEdit) return;
-    if (!watchCustomer || didAutoCurrencyRef.current) return;
-    const c = customers.find((x) => x.id === watchCustomer);
-    if (c?.balance_currency &&
-      (BALANCE_CURRENCIES as readonly string[]).includes(c.balance_currency)) {
-      form.setValue(
-        "invoice_currency",
-        c.balance_currency as ShipmentFormValues["invoice_currency"],
-      );
-      didAutoCurrencyRef.current = true;
+    if (!watchCustomer) {
+      autoCurrencyForRef.current = null;
+      return;
     }
-    // Set placeholder name if blank.
+    const c = customers.find((x) => x.id === watchCustomer);
+    if (autoCurrencyForRef.current !== watchCustomer) {
+      if (
+        c?.balance_currency &&
+        (BALANCE_CURRENCIES as readonly string[]).includes(c.balance_currency)
+      ) {
+        form.setValue(
+          "invoice_currency",
+          c.balance_currency as ShipmentFormValues["invoice_currency"],
+        );
+      }
+      autoCurrencyForRef.current = watchCustomer;
+    }
+    // Set placeholder name once the count for this customer has resolved,
+    // otherwise we'd lock in "#1" before the real count arrives.
+    if (countQ.isPending) return;
     const currentName = form.getValues("name");
     if (!currentName && c?.company_name) {
       const n = (countQ.data ?? 0) + 1;
       form.setValue("name", `${c.company_name} #${n}`);
     }
-  }, [watchCustomer, customers, countQ.data, form, isEdit]);
+  }, [watchCustomer, customers, countQ.data, countQ.isPending, form, isEdit]);
 
   const saveMut = useMutation({
     mutationFn: async (values: ShipmentFormOutput) => {

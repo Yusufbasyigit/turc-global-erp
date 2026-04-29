@@ -187,6 +187,10 @@ export function ShipmentDetail({ id }: { id: string }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: shipmentKeys.all });
       qc.invalidateQueries({ queryKey: orderKeys.all });
+      // Adding an order to a booked/in-transit shipment refreshes its
+      // billing accruals server-side; without this the billing card here
+      // and the customer ledger render stale numbers.
+      qc.invalidateQueries({ queryKey: transactionKeys.all });
       toast.success("Order added");
     },
     onError: (e: Error) => toast.error(e.message ?? "Failed"),
@@ -197,16 +201,33 @@ export function ShipmentDetail({ id }: { id: string }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: shipmentKeys.all });
       qc.invalidateQueries({ queryKey: orderKeys.all });
+      qc.invalidateQueries({ queryKey: transactionKeys.all });
       toast.success("Order removed");
     },
     onError: (e: Error) => toast.error(e.message ?? "Failed"),
   });
 
-  if (shipmentQ.isLoading || !shipment) {
+  if (shipmentQ.isLoading) {
     return (
       <div className="space-y-4 p-4 md:p-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  if (!shipment) {
+    return (
+      <div className="flex flex-col items-start gap-3 p-4 md:p-6">
+        <Link
+          href="/shipments"
+          className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          ← Back to shipments
+        </Link>
+        <p className="text-sm text-muted-foreground">
+          This shipment no longer exists. It may have been deleted.
+        </p>
       </div>
     );
   }

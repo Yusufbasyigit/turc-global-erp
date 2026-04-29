@@ -103,7 +103,7 @@ function ShipmentCapacityCardImpl({ shipmentId, containerType }: Props) {
       )}
 
       {totals && (totals.linesMissingDimensions > 0 || totals.linesMissingWeight > 0) ? (
-        <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+        <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
           {totals.linesMissingDimensions > 0 ? (
             <div>
               {totals.linesMissingDimensions} line
@@ -122,7 +122,7 @@ function ShipmentCapacityCardImpl({ shipmentId, containerType }: Props) {
       ) : null}
 
       {fill && (fill.overCbm || fill.overWeight) ? (
-        <div className="mt-3 rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
+        <div className="mt-3 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-[11px] text-rose-900">
           Over container capacity:
           {fill.overCbm ? ` volume at ${fmtPct(fill.fill.cbm)}` : ""}
           {fill.overCbm && fill.overWeight ? "," : ""}

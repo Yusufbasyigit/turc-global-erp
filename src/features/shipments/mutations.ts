@@ -80,7 +80,11 @@ export async function updateShipment(input: {
   const userId = await currentUserId();
   const now = new Date().toISOString();
 
-  const freightChanging = "freight_cost" in input.payload;
+  // freight_currency alone can shift the booked amount, so block it on
+  // arrived shipments too — otherwise a UI bypass could change billing
+  // without going through assertShipmentEditable.
+  const freightChanging =
+    "freight_cost" in input.payload || "freight_currency" in input.payload;
   if (freightChanging) {
     await assertShipmentEditable(input.id);
   }
@@ -287,7 +291,7 @@ export async function advanceShipmentStatus(input: {
         cascadedOrderCount: updatedOrders.length,
       };
     } catch (err) {
-      await Promise.allSettled(
+      const rollbackResults = await Promise.allSettled(
         updatedOrders.map((u) =>
           supabase
             .from("orders")
@@ -295,10 +299,29 @@ export async function advanceShipmentStatus(input: {
             .eq("id", u.id),
         ),
       );
+      const failedRollbacks = rollbackResults
+        .map((r, i) => ({ r, id: updatedOrders[i]?.id }))
+        .filter((x) => x.r.status === "rejected" && x.id)
+        .map((x) => (x.id as string).slice(0, 8));
       try {
         await restoreAccrualSnapshots(accrualRefresh.snapshots);
-      } catch {
-        /* best-effort rollback */
+      } catch (rollbackErr) {
+        const baseMessage =
+          err instanceof Error ? err.message : "Order cascade failed";
+        const rollbackMessage =
+          rollbackErr instanceof Error
+            ? rollbackErr.message
+            : "accrual rollback failed";
+        throw new Error(
+          `${baseMessage}. Additionally, the billing accrual rollback failed (${rollbackMessage}); please review shipment ${current.id.slice(0, 8)} accrual transactions manually.`,
+        );
+      }
+      if (failedRollbacks.length > 0) {
+        const baseMessage =
+          err instanceof Error ? err.message : "Order cascade failed";
+        throw new Error(
+          `${baseMessage}. Additionally, ${failedRollbacks.length} order(s) could not be rolled back to their previous status: ${failedRollbacks.join(", ")}. Please verify their statuses manually.`,
+        );
       }
       throw err;
     }
