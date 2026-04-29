@@ -312,23 +312,25 @@ export async function addOrderLine(input: {
   const order = await loadOrder(input.order_id);
   await assertShipmentEditable(order.billing_shipment_id);
 
-  const { data: existing, error: countErr } = await supabase
-    .from("order_details")
-    .select("line_number")
-    .eq("order_id", input.order_id)
-    .order("line_number", { ascending: false })
-    .limit(1);
-  if (countErr) throw countErr;
-  const nextLineNumber = (existing?.[0]?.line_number ?? 0) + 1;
+  const computeNextLineNumber = async (): Promise<number> => {
+    const { data: existing, error: countErr } = await supabase
+      .from("order_details")
+      .select("line_number")
+      .eq("order_id", input.order_id)
+      .order("line_number", { ascending: false })
+      .limit(1);
+    if (countErr) throw countErr;
+    return (existing?.[0]?.line_number ?? 0) + 1;
+  };
 
   const products = await fetchProductSnapshots([input.line.product_id]);
   const product = products.get(input.line.product_id);
   const snap = product ? snapshotFromProduct(product) : null;
 
-  const payload: OrderDetailInsert = {
+  const buildPayload = (lineNumber: number): OrderDetailInsert => ({
     order_id: input.order_id,
     product_id: input.line.product_id,
-    line_number: nextLineNumber,
+    line_number: lineNumber,
     product_name_snapshot:
       input.line.product_name_snapshot ??
       snap?.product_name_snapshot ??
@@ -372,14 +374,25 @@ export async function addOrderLine(input: {
     created_time: now,
     edited_by: userId,
     edited_time: now,
-  };
+  });
 
-  const { data, error } = await supabase
-    .from("order_details")
-    .insert(payload)
-    .select()
-    .single();
-  if (error) throw error;
+  // Two parallel adds can compute the same nextLineNumber; the unique
+  // (order_id, line_number) index then rejects the second insert with 23505.
+  // Recompute and retry once when that happens.
+  const insertOnce = async () => {
+    const lineNumber = await computeNextLineNumber();
+    return supabase
+      .from("order_details")
+      .insert(buildPayload(lineNumber))
+      .select()
+      .single();
+  };
+  let inserted = await insertOnce();
+  if (inserted.error && (inserted.error as { code?: string }).code === "23505") {
+    inserted = await insertOnce();
+  }
+  if (inserted.error) throw inserted.error;
+  const data = inserted.data;
 
   if (order.billing_shipment_id) {
     try {
@@ -441,14 +454,18 @@ export async function updateOrderLine(input: {
       await refreshShipmentBilling(order.billing_shipment_id);
     } catch (refreshErr) {
       try {
+        const rollback: Record<string, unknown> = {
+          edited_by: previousLine.edited_by,
+          edited_time: previousLine.edited_time,
+        };
+        for (const key of Object.keys(input.payload) as (keyof OrderDetailUpdate)[]) {
+          rollback[key as string] = (previousLine as unknown as Record<string, unknown>)[
+            key as string
+          ];
+        }
         await supabase
           .from("order_details")
-          .update({
-            quantity: previousLine.quantity,
-            unit_sales_price: previousLine.unit_sales_price,
-            edited_by: previousLine.edited_by,
-            edited_time: previousLine.edited_time,
-          })
+          .update(rollback as OrderDetailUpdate)
           .eq("id", input.line_id);
       } catch {
         /* best-effort rollback */

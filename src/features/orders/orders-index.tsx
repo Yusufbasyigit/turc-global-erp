@@ -37,6 +37,7 @@ import type {
 import { ORDER_STATUSES } from "@/lib/supabase/types";
 
 import {
+  ORDER_LIFECYCLE,
   ORDER_STATUS_BADGE_CLASSES,
   ORDER_STATUS_LABELS,
 } from "./constants";
@@ -108,7 +109,9 @@ export function OrdersIndex() {
       if (groupBy === "customer") {
         key = o.customer?.company_name ?? "Unknown customer";
       } else if (groupBy === "status") {
-        key = ORDER_STATUS_LABELS[o.status as OrderStatus] ?? o.status;
+        // Use the raw status as the key so we can sort by lifecycle order;
+        // the label is computed at render time.
+        key = o.status as string;
       } else {
         key = o.shipment?.name ?? "Unassigned";
       }
@@ -116,7 +119,20 @@ export function OrdersIndex() {
       arr.push(o);
       map.set(key, arr);
     }
-    return Array.from(map.entries())
+    const entries = Array.from(map.entries());
+    if (groupBy === "status") {
+      const lifecycleOrder = (s: string) => {
+        const idx = (ORDER_LIFECYCLE as readonly string[]).indexOf(s);
+        // Cancelled (and any unknown statuses) sort after the lifecycle.
+        return idx === -1 ? ORDER_LIFECYCLE.length + 1 : idx;
+      };
+      entries.sort(([a], [b]) => lifecycleOrder(a) - lifecycleOrder(b));
+      return entries.map(([k, rows]) => ({
+        title: ORDER_STATUS_LABELS[k as OrderStatus] ?? k,
+        rows,
+      }));
+    }
+    return entries
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, rows]) => ({ title: k, rows }));
   }, [filtered, groupBy]);

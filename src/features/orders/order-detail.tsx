@@ -18,6 +18,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Combobox } from "@/components/ui/combobox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format-money";
 import {
@@ -29,6 +39,7 @@ import {
   type OrderStatus,
 } from "@/lib/supabase/types";
 import { listSupplierContacts, supplierKeys } from "@/features/products/queries";
+import { shipmentKeys } from "@/features/shipments/queries";
 import { formatDateOnly } from "@/lib/format-date";
 
 import {
@@ -80,6 +91,8 @@ export function OrderDetail({ id }: { id: string }) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [packagingLine, setPackagingLine] =
+    useState<OrderDetailWithRelations | null>(null);
+  const [confirmDeleteLine, setConfirmDeleteLine] =
     useState<OrderDetailWithRelations | null>(null);
 
   const orderQ = useQuery({
@@ -152,6 +165,7 @@ export function OrderDetail({ id }: { id: string }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: orderKeys.detail(id) });
       qc.invalidateQueries({ queryKey: orderKeys.list() });
+      qc.invalidateQueries({ queryKey: shipmentKeys.all });
       toast.success("Line added");
     },
     onError: (e: Error) => toast.error(e.message ?? "Failed to add line"),
@@ -162,6 +176,7 @@ export function OrderDetail({ id }: { id: string }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: orderKeys.detail(id) });
       qc.invalidateQueries({ queryKey: orderKeys.list() });
+      qc.invalidateQueries({ queryKey: shipmentKeys.all });
       toast.success("Line removed");
     },
     onError: (e: Error) => toast.error(e.message ?? "Failed"),
@@ -172,6 +187,7 @@ export function OrderDetail({ id }: { id: string }) {
       advanceOrderStatus({ order_id: id, to }),
     onSuccess: (o) => {
       qc.invalidateQueries({ queryKey: orderKeys.all });
+      qc.invalidateQueries({ queryKey: shipmentKeys.all });
       toast.success(
         `Moved to ${ORDER_STATUS_LABELS[o.status as OrderStatus] ?? o.status}`,
       );
@@ -183,17 +199,59 @@ export function OrderDetail({ id }: { id: string }) {
     mutationFn: () => unassignOrderFromShipment(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: orderKeys.all });
+      qc.invalidateQueries({ queryKey: shipmentKeys.all });
       toast.success("Detached from shipment");
     },
     onError: (e: Error) => toast.error(e.message ?? "Failed"),
   });
 
-  if (orderQ.isLoading || !order) {
+  if (orderQ.isLoading) {
     return (
       <div className="space-y-4 p-4 md:p-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (orderQ.isError) {
+    return (
+      <div className="flex flex-col gap-4 p-4 md:p-6">
+        <Link
+          href="/orders"
+          className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          ← Back to orders
+        </Link>
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-sm">
+          <h1 className="text-base font-semibold">Couldn’t load this order</h1>
+          <p className="mt-1 text-muted-foreground">
+            {orderQ.error instanceof Error
+              ? orderQ.error.message
+              : "Something went wrong."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="flex flex-col gap-4 p-4 md:p-6">
+        <Link
+          href="/orders"
+          className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          ← Back to orders
+        </Link>
+        <div className="rounded-lg border border-dashed p-8 text-center">
+          <h1 className="text-base font-semibold">Order not found</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            No order matches <span className="font-mono">{id.slice(0, 8)}</span>.
+            It may have been deleted or the link is wrong.
+          </p>
+        </div>
       </div>
     );
   }
@@ -381,7 +439,7 @@ export function OrderDetail({ id }: { id: string }) {
                     line={line}
                     orderId={id}
                     supplierItems={supplierItems}
-                    onDelete={() => deleteLineMut.mutate(line.id)}
+                    onDelete={() => setConfirmDeleteLine(line)}
                     onEditPackaging={() => setPackagingLine(line)}
                   />
                 ))}
@@ -489,6 +547,51 @@ export function OrderDetail({ id }: { id: string }) {
           orderId={id}
         />
       ) : null}
+
+      <AlertDialog
+        open={Boolean(confirmDeleteLine)}
+        onOpenChange={(v) => {
+          if (!v) setConfirmDeleteLine(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this line?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDeleteLine ? (
+                <>
+                  Line {confirmDeleteLine.line_number}:{" "}
+                  <strong className="text-foreground">
+                    {confirmDeleteLine.product_name_snapshot}
+                  </strong>{" "}
+                  will be removed from this order.
+                  {order.billing_shipment_id
+                    ? " The linked shipment’s billing will also be refreshed."
+                    : ""}
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLineMut.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (!confirmDeleteLine) return;
+                deleteLineMut.mutate(confirmDeleteLine.id, {
+                  onSettled: () => setConfirmDeleteLine(null),
+                });
+              }}
+              disabled={deleteLineMut.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteLineMut.isPending ? "Removing…" : "Remove line"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

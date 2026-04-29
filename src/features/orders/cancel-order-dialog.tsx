@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { cancelOrder } from "./mutations";
 import { orderKeys } from "./queries";
+import { shipmentKeys } from "@/features/shipments/queries";
 
 export function CancelOrderDialog({
   open,
@@ -30,11 +31,19 @@ export function CancelOrderDialog({
 }) {
   const qc = useQueryClient();
   const [reason, setReason] = useState("");
+  const [prevOpen, setPrevOpen] = useState(open);
+  // Reset the reason whenever the dialog transitions from closed to open,
+  // so a previously-typed-then-abandoned reason doesn't carry over.
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setReason("");
+  }
 
   const mut = useMutation({
     mutationFn: () => cancelOrder({ order_id: orderId, reason }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: orderKeys.all });
+      qc.invalidateQueries({ queryKey: shipmentKeys.all });
       toast.success("Order cancelled");
       setReason("");
       onOpenChange(false);
