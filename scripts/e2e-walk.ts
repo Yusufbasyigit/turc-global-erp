@@ -432,15 +432,15 @@ function rawClient() {
   return createClient();
 }
 
-// Service-role client only used if NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
-// is set. Most ops won't need it; we only fall back to it when an
-// assertion has to read across RLS or trigger a constraint we can't hit
-// from the app.
+// Service-role client only used if SUPABASE_SERVICE_ROLE_KEY is set.
+// Most ops won't need it; we only fall back to it when an assertion
+// has to read across RLS or trigger a constraint we can't hit from
+// the app. Never accept a NEXT_PUBLIC_* form here — that prefix
+// inlines the value into the client bundle, which would leak the
+// service-role key to every browser session.
 function maybeServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) return null;
   return createServiceClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
