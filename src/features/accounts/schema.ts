@@ -52,12 +52,6 @@ export const accountFormSchema = z
       .optional(),
   })
   .superRefine((v, ctx) => {
-    // Asset code: uppercase except for metals (preserves Altın / Gümüş).
-    // Done in superRefine via mutation so output reflects the canonical form.
-    if (v.asset_type !== "metal") {
-      v.asset_code = v.asset_code.toUpperCase();
-    }
-
     // Credit cards live in a custody location flagged as "bank" (matches how
     // a real card is held). We don't add a new custody type for cards.
     if (
@@ -94,8 +88,6 @@ export const accountFormSchema = z
           code: z.ZodIssueCode.custom,
           message: "Doesn't look like a valid IBAN",
         });
-      } else {
-        v.iban = stripped;
       }
     }
 
@@ -110,7 +102,15 @@ export const accountFormSchema = z
         message: "Subtype only applies to fund accounts",
       });
     }
-  });
+  })
+  .transform((v) => ({
+    ...v,
+    // Canonicalize: asset_code uppercased except for metals (preserves Altın
+    // / Gümüş), IBAN spaces stripped + uppercased.
+    asset_code:
+      v.asset_type === "metal" ? v.asset_code : v.asset_code.toUpperCase(),
+    iban: v.iban ? v.iban.replace(/\s+/g, "").toUpperCase() : v.iban,
+  }));
 
 export type AccountFormValues = z.input<typeof accountFormSchema>;
 export type AccountFormOutput = z.output<typeof accountFormSchema>;

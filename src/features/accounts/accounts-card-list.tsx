@@ -28,6 +28,11 @@ import type { AccountWithCustody } from "@/lib/supabase/types";
 import { formatQuantity } from "@/features/treasury/fx-utils";
 import type { AccountGroup } from "./accounts-table";
 
+function formatIban(iban: string): string {
+  const stripped = iban.replace(/\s+/g, "");
+  return stripped.match(/.{1,4}/g)?.join(" ") ?? iban;
+}
+
 export function AccountsCardList({
   groups,
   balances,
@@ -194,7 +199,7 @@ function AccountCard({
                 <>
                   <dt className="text-muted-foreground">IBAN</dt>
                   <dd className="text-right font-mono text-[11px]">
-                    {account.iban}
+                    {formatIban(account.iban)}
                   </dd>
                 </>
               ) : null}

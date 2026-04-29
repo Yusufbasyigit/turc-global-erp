@@ -162,13 +162,19 @@ export function AccountDetail({ accountId }: { accountId: string }) {
   }
 
   if (accountQ.isError || !account) {
+    const errMsg =
+      accountQ.error instanceof Error
+        ? accountQ.error.message
+        : accountQ.error
+          ? String(accountQ.error)
+          : "Unknown error";
     return (
       <div className="space-y-4">
         <BackLink />
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
           {accountQ.isError
-            ? `Failed to load account: ${(accountQ.error as Error).message}`
-            : "This account does not exist or was deleted."}
+            ? `Failed to load account: ${errMsg}`
+            : "This account does not exist."}
         </div>
       </div>
     );
@@ -238,21 +244,30 @@ export function AccountDetail({ accountId }: { accountId: string }) {
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setMoveOpen(true)}>
-            <ArrowLeftRight className="mr-2 size-4" />
-            Record movement
-          </Button>
-          <Button variant="outline" onClick={() => setTxnOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New transaction
-          </Button>
-          <Button variant="ghost" onClick={() => setEditOpen(true)}>
-            <Pencil className="mr-2 size-4" />
-            Edit
-          </Button>
-        </div>
+        {isDeleted ? null : (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setMoveOpen(true)}>
+              <ArrowLeftRight className="mr-2 size-4" />
+              Record movement
+            </Button>
+            <Button variant="outline" onClick={() => setTxnOpen(true)}>
+              <Plus className="mr-2 size-4" />
+              New transaction
+            </Button>
+            <Button variant="ghost" onClick={() => setEditOpen(true)}>
+              <Pencil className="mr-2 size-4" />
+              Edit
+            </Button>
+          </div>
+        )}
       </header>
+
+      {isDeleted ? (
+        <div className="rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+          This account is archived. Restore it from the Accounts list to make
+          changes or record new activity.
+        </div>
+      ) : null}
 
       <section className="rounded-lg border bg-card p-5">
         <div className="flex flex-wrap items-baseline gap-4">

@@ -209,6 +209,13 @@ export function AccountsIndex() {
   };
 
   const handleDelete = (account: AccountWithCustody) => {
+    if (!movementsQ.isSuccess) {
+      // Without the movement count we can't render a truthful confirmation
+      // copy ("X has N movements …"), so wait for the query rather than show
+      // a stale "0 movements" claim.
+      toast.message("Loading movement count — try again in a moment.");
+      return;
+    }
     setDeleteTarget({
       id: account.id,
       name: account.account_name,
@@ -316,7 +323,9 @@ export function AccountsIndex() {
 
       {!isLoading && !isError && !hasGroups ? (
         <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
-          No accounts match the current filters.
+          {accounts.length === 0
+            ? "No accounts yet — add one to get started."
+            : "No accounts match the current filters."}
         </div>
       ) : null}
 

@@ -48,6 +48,7 @@ import {
   createSingleLegMovement,
 } from "./mutations";
 import { treasuryKeys } from "./queries";
+import { accountKeys } from "@/features/accounts/queries";
 import { formatQuantity, todayDateString } from "./fx-utils";
 import {
   MOVEMENT_KIND_DESCRIPTIONS,
@@ -279,6 +280,7 @@ export function RecordMovementDialog({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: treasuryKeys.all });
+      qc.invalidateQueries({ queryKey: accountKeys.all });
       toast.success("Movement recorded");
       onOpenChange(false);
     },

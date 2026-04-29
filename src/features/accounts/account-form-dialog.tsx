@@ -184,6 +184,23 @@ export function AccountFormDialog({
     );
   }, [selectedCustody, form]);
 
+  // When asset_type changes, clear fields whose inputs are no longer rendered
+  // for the current type. Without this, stale values linger in form state and
+  // trip the schema's "subtype only applies to fund accounts" rule (etc.) on
+  // submit — the offending input isn't visible, so the user can't fix it.
+  useEffect(() => {
+    if (assetType !== "fund") {
+      form.setValue("subtype", null, { shouldValidate: false, shouldDirty: false });
+    }
+    if (assetType !== "fiat" && assetType !== "credit_card") {
+      form.setValue("bank_name", null, { shouldValidate: false, shouldDirty: false });
+      form.setValue("account_type", null, { shouldValidate: false, shouldDirty: false });
+    }
+    if (assetType !== "fiat") {
+      form.setValue("iban", null, { shouldValidate: false, shouldDirty: false });
+    }
+  }, [assetType, form]);
+
   // Custody picker options: active locations only, but if the loaded record
   // references an inactive custody, prepend it (with `(inactive)` suffix) so
   // the FK isn't silently stripped on save.
@@ -259,7 +276,13 @@ export function AccountFormDialog({
       setStepIndex(target);
       return;
     }
-    const ok = await form.trigger(currentStep.fields);
+    // Forward jump via stepper must validate every step in between, not just
+    // the current one — otherwise a user can click step 3 from step 1 and
+    // skip step 2's required fields entirely.
+    const fieldsToValidate = STEPS.slice(stepIndex, target).flatMap(
+      (s) => s.fields,
+    );
+    const ok = await form.trigger(fieldsToValidate);
     if (!ok) return;
     setStepIndex(target);
   };
@@ -366,11 +389,27 @@ export function AccountFormDialog({
                     error={form.formState.errors.asset_code?.message}
                     hint={ASSET_CODE_HELPER[assetType ?? "fiat"]}
                   >
-                    <Input
-                      placeholder={
-                        assetType === "metal" ? "Altın" : "USD"
-                      }
-                      {...form.register("asset_code")}
+                    <Controller
+                      name="asset_code"
+                      control={form.control}
+                      render={({ field }) => (
+                        <Input
+                          placeholder={
+                            assetType === "metal" ? "Altın" : "USD"
+                          }
+                          value={field.value ?? ""}
+                          onBlur={field.onBlur}
+                          onChange={(e) => {
+                            // Live-uppercase non-metal asset codes so the
+                            // value the user sees matches what we save.
+                            const next =
+                              assetType === "metal"
+                                ? e.target.value
+                                : e.target.value.toUpperCase();
+                            field.onChange(next);
+                          }}
+                        />
+                      )}
                     />
                   </Field>
                 </div>
