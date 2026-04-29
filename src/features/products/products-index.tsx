@@ -35,6 +35,7 @@ import { ProductsTable } from "./products-table";
 import { ProductsCardList } from "./products-card-list";
 import { ProductFormDialog } from "./product-form-dialog";
 import { DeleteProductDialog } from "./delete-product-dialog";
+import { BatchAddProductsButton } from "./batch-add-products-button";
 
 type ActiveFilter = "active" | "all";
 
@@ -121,10 +122,13 @@ export function ProductsIndex() {
           </p>
         </div>
         {hasAnyProducts ? (
-          <Button onClick={openCreate} className="md:self-end">
-            <Plus className="mr-2 size-4" />
-            Add product
-          </Button>
+          <div className="flex flex-wrap gap-2 md:self-end">
+            <BatchAddProductsButton />
+            <Button variant="outline" onClick={openCreate}>
+              <Plus className="mr-2 size-4" />
+              Add single
+            </Button>
+          </div>
         ) : null}
       </header>
 
@@ -353,13 +357,16 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       </div>
       <h2 className="text-lg font-medium">No products yet</h2>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        Add your first product to start building the catalog for orders and
-        proposals.
+        Paste a supplier catalog to seed many products at once, or add one by
+        hand.
       </p>
-      <Button onClick={onAdd} className="mt-6">
-        <Plus className="mr-2 size-4" />
-        Add your first product
-      </Button>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+        <BatchAddProductsButton />
+        <Button variant="outline" onClick={onAdd}>
+          <Plus className="mr-2 size-4" />
+          Or add one product
+        </Button>
+      </div>
     </div>
   );
 }
