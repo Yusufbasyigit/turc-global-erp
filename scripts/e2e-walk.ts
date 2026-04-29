@@ -364,7 +364,7 @@ class Notes {
     this.buf.push(msg);
     console.log("    " + msg);
   }
-  fail(expected: unknown, actual: unknown, label: string) {
+  fail(expected: unknown, actual: unknown, label: string): never {
     const msg = `ASSERT FAIL [${label}] expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}`;
     this.buf.push(msg);
     console.log("    ✗ " + msg);
@@ -545,7 +545,7 @@ async function scenario1(n: Notes) {
         .maybeSingle();
       if (existing) {
         categoryId = existing.id;
-        n.log(`reused existing category ${categoryId.slice(0, 8)}`);
+        n.log(`reused existing category ${existing.id.slice(0, 8)}`);
       } else {
         warnings.push(
           "product_categories blocked under RLS — products created with category_id=null",
@@ -2176,7 +2176,10 @@ async function scenario11(n: Notes) {
     )
     .eq("from_account_id", acctEurId)
     .limit(1)
-    .maybeSingle();
+    .maybeSingle<{
+      id: string;
+      from_account: { account_name: string } | null;
+    }>();
   if (histTxn?.from_account?.account_name)
     n.ok(
       `historical join still resolves account name: ${histTxn.from_account.account_name}`,
