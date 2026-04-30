@@ -161,7 +161,26 @@ After that, magic links land on the right app in both dev and prod.
 | `npm run lint` | ESLint |
 | `npm run lint:fix` | ESLint with autofix |
 | `npm run typecheck` | `tsc --noEmit` over the whole project |
+| `npm test` | Run every `*.test.ts` file under `src/` (filter with `npm test -- <substring>`) |
 | `npm run db:types` | Regenerate `src/types/database.ts` from the live Supabase schema |
+
+## Tests
+
+Tests live next to the code they cover, named `<thing>.test.ts`. They are plain TypeScript scripts — no Jest, no Vitest. Each file:
+
+1. Imports the unit under test
+2. Defines local `assertEq` / `section` helpers
+3. Logs `✓ <label>` / `✗ <label>` per assertion
+4. Ends with `N passed, M failed` and exits non-zero on failure
+
+`npm test` discovers every `*.test.ts` under `src/`, runs each via `tsx` in a subprocess, and aggregates the totals. Substring filter:
+
+```bash
+npm test -- ledger              # only files with "ledger" in the path
+npm test -- transactions/schema # narrow further
+```
+
+To add a new test, copy the boilerplate from any existing file (e.g. `src/lib/ledger/installment-allocation.test.ts`). Keep tests pure: they should not hit Supabase, the network, or the filesystem.
 
 ## Database migrations
 
