@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  ExternalLink,
   Link2,
   Paperclip,
   Pencil,
@@ -44,7 +45,7 @@ import type {
   AccountWithCustody,
   TransactionKind,
 } from "@/lib/supabase/types";
-import { TRANSACTION_KINDS } from "@/lib/supabase/types";
+import { DISABLED_KINDS, TRANSACTION_KINDS } from "@/lib/supabase/types";
 import { CONTACT_TYPE_BADGE_CLASSES } from "@/lib/constants";
 
 import {
@@ -239,6 +240,15 @@ export function TransactionsIndex() {
       const match = transactions.find((t) => t.id === id);
       if (!match) return;
       prefillConsumedRef.current = true;
+      if ((DISABLED_KINDS as readonly string[]).includes(match.kind)) {
+        const target = disabledKindTarget(match);
+        if (target) {
+          router.replace(target.href, { scroll: false });
+          return;
+        }
+        router.replace("/transactions", { scroll: false });
+        return;
+      }
       setEditing(match);
       setPrefill(null);
       setFormOpen(true);
@@ -641,13 +651,7 @@ export function TransactionsIndex() {
                             ) : null}
                           </td>
                           <td className="px-3 py-2 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEdit(t)}
-                            >
-                              <Pencil className="size-3.5" />
-                            </Button>
+                            <RowAction t={t} onEdit={openEdit} />
                           </td>
                         </tr>
                       );
@@ -695,6 +699,66 @@ export function TransactionsIndex() {
       />
     </div>
     </TooltipProvider>
+  );
+}
+
+function disabledKindTarget(
+  t: TransactionWithRelations,
+): { href: string; tooltip: string } | null {
+  if (
+    t.kind === "shipment_billing" ||
+    t.kind === "shipment_cogs" ||
+    t.kind === "shipment_freight"
+  ) {
+    if (!t.related_shipment_id) return null;
+    return {
+      href: `/shipments/${t.related_shipment_id}`,
+      tooltip: "Managed via shipment — click to view",
+    };
+  }
+  if (t.kind === "profit_distribution") {
+    return {
+      href: "/partners",
+      tooltip: "Recorded from the Partners page",
+    };
+  }
+  return null;
+}
+
+function RowAction({
+  t,
+  onEdit,
+}: {
+  t: TransactionWithRelations;
+  onEdit: (t: TransactionWithRelations) => void;
+}) {
+  const isDisabledKind = (DISABLED_KINDS as readonly string[]).includes(t.kind);
+  if (isDisabledKind) {
+    const target = disabledKindTarget(t);
+    if (!target) {
+      return (
+        <Button variant="ghost" size="sm" disabled aria-label="Read-only row">
+          <ExternalLink className="size-3.5" />
+        </Button>
+      );
+    }
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={target.href} aria-label={target.tooltip}>
+              <ExternalLink className="size-3.5" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{target.tooltip}</TooltipContent>
+      </Tooltip>
+    );
+  }
+  return (
+    <Button variant="ghost" size="sm" onClick={() => onEdit(t)}>
+      <Pencil className="size-3.5" />
+    </Button>
   );
 }
 
