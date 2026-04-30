@@ -59,7 +59,11 @@ export function ContactsTable({
               key={c.id}
               className="cursor-pointer hover:bg-muted/30"
               onClick={(e) => {
-                if ((e.target as HTMLElement).closest("[data-row-action]")) return;
+                if (e.button !== 0) return;
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                const t = e.target as HTMLElement;
+                if (t.closest("[data-row-action]")) return;
+                if (t.closest("a")) return;
                 router.push(`/contacts/${c.id}`);
               }}
             >
@@ -75,19 +79,19 @@ export function ContactsTable({
                 </Link>
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {c.contact_person ?? "—"}
+                {c.contact_person || "—"}
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {c.phone ?? "—"}
+                {c.phone || "—"}
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {c.email ?? "—"}
+                {c.email || "—"}
               </TableCell>
               <TableCell>
                 <CountryFlag country={c.countries} />
               </TableCell>
               <TableCell className="text-muted-foreground font-mono text-xs">
-                {c.balance_currency ?? "—"}
+                {c.balance_currency || "—"}
               </TableCell>
               <TableCell className="text-right font-mono text-xs">
                 <BalanceCell balance={balances.get(c.id)} />
@@ -142,7 +146,7 @@ function BalanceCell({ balance }: { balance: ContactBalance | undefined }) {
         isZero
           ? "text-muted-foreground"
           : balance.net_balance > 0
-            ? "text-foreground"
+            ? "text-rose-700"
             : "text-emerald-700",
       )}
       title={

@@ -108,11 +108,10 @@ function toFormValues(c: ContactWithCountry): ContactFormValues {
     city: c.city ?? "",
     country_code: c.country_code ?? "",
     balance_currency:
-      (BALANCE_CURRENCIES as readonly string[]).includes(
-        c.balance_currency ?? "",
-      )
+      c.balance_currency &&
+      (BALANCE_CURRENCIES as readonly string[]).includes(c.balance_currency)
         ? (c.balance_currency as ContactFormValues["balance_currency"])
-        : DEFAULT_VALUES.balance_currency,
+        : "",
     tax_id: c.tax_id ?? "",
     tax_office: c.tax_office ?? "",
     notes: c.notes ?? "",
@@ -201,10 +200,19 @@ export function ContactFormDialog({
 
   const submitting = createMut.isPending || updateMut.isPending;
 
-  const onSubmit = form.handleSubmit((values) => {
-    if (isEdit) updateMut.mutate(values);
-    else createMut.mutate(values);
-  });
+  const onSubmit = form.handleSubmit(
+    (values) => {
+      if (isEdit) updateMut.mutate(values);
+      else createMut.mutate(values);
+    },
+    (errors) => {
+      const firstStep = STEPS.findIndex((s) =>
+        s.fields.some((f) => errors[f as keyof typeof errors]),
+      );
+      if (firstStep !== -1 && firstStep !== stepIndex) setStepIndex(firstStep);
+      toast.error("Please fix the highlighted fields.");
+    },
+  );
 
   const watchCountry = useWatch({
     control: form.control,
@@ -227,8 +235,13 @@ export function ContactFormDialog({
       setStepIndex(target);
       return;
     }
-    const ok = await form.trigger(currentStep.fields);
-    if (!ok) return;
+    for (let i = stepIndex; i < target; i++) {
+      const ok = await form.trigger(STEPS[i].fields);
+      if (!ok) {
+        setStepIndex(i);
+        return;
+      }
+    }
     setStepIndex(target);
   };
 

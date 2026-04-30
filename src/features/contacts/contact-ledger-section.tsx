@@ -76,7 +76,8 @@ export function ContactLedgerSection({ contactId }: { contactId: string }) {
     queryFn: () => listTransactionsForContact(contactId),
   });
 
-  const displayCurrency = contactQ.data?.balance_currency ?? "USD";
+  const balanceCurrency = contactQ.data?.balance_currency ?? null;
+  const displayCurrency = balanceCurrency ?? "USD";
 
   const fifo = useMemo(() => {
     const events = (ledgerQ.data ?? []).map(toLedgerEvent);
@@ -153,6 +154,21 @@ export function ContactLedgerSection({ contactId }: { contactId: string }) {
         </CardHeader>
         <CardContent>
           <Skeleton className="h-24 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!balanceCurrency) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Ledger</CardTitle>
+        </CardHeader>
+        <CardContent className="pb-4">
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            Set a balance currency on this contact to compute their ledger.
+          </div>
         </CardContent>
       </Card>
     );

@@ -14,7 +14,6 @@ import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import {
   contactKeys,
   getContact,
@@ -44,7 +43,12 @@ export function ContactDetail({ contactId }: { contactId: string }) {
     queryFn: () => getContact(contactId),
   });
 
-  const { data: notes = [], isLoading: notesLoading } = useQuery({
+  const {
+    data: notes = [],
+    isLoading: notesLoading,
+    isError: notesError,
+    error: notesErrorObj,
+  } = useQuery({
     queryKey: contactKeys.notes(contactId),
     queryFn: () => listContactNotes(contactId),
   });
@@ -181,6 +185,10 @@ export function ContactDetail({ contactId }: { contactId: string }) {
               <Skeleton className="h-12 w-full" />
               <Skeleton className="h-12 w-full" />
             </div>
+          ) : notesError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+              Failed to load notes: {(notesErrorObj as Error)?.message}
+            </div>
           ) : notes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <MessageSquare className="mb-3 size-8 text-muted-foreground" />
@@ -199,16 +207,13 @@ export function ContactDetail({ contactId }: { contactId: string }) {
                   {i < notes.length - 1 ? (
                     <span
                       aria-hidden
-                      className="absolute left-[3px] top-4 h-[calc(100%+1rem)] w-px bg-border"
+                      className="absolute left-[3px] top-4 bottom-[-1rem] w-px bg-border"
                     />
                   ) : null}
                   <p className="text-xs text-muted-foreground">
                     {format(parseISO(n.note_date), "PPP")}
                   </p>
                   <p className="mt-1 whitespace-pre-wrap text-sm">{n.body}</p>
-                  {i < notes.length - 1 ? (
-                    <Separator className="mt-4" />
-                  ) : null}
                 </li>
               ))}
             </ol>

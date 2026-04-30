@@ -131,6 +131,19 @@ export function ContactsIndex() {
   const archiveCount = deletedContacts?.length ?? 0;
   const hasArchive = archiveCount > 0;
 
+  const filteredArchive = useMemo(() => {
+    if (!deletedContacts) return [];
+    const term = search.trim().toLowerCase();
+    if (!term) return deletedContacts;
+    return deletedContacts.filter(
+      (c) =>
+        c.company_name.toLowerCase().includes(term) ||
+        (c.contact_person?.toLowerCase().includes(term) ?? false) ||
+        (c.email?.toLowerCase().includes(term) ?? false) ||
+        (c.phone?.toLowerCase().includes(term) ?? false),
+    );
+  }, [deletedContacts, search]);
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -247,6 +260,18 @@ export function ContactsIndex() {
             list with all its data intact.
           </p>
 
+          {hasArchive ? (
+            <div className="relative md:max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search archive…"
+                className="pl-9"
+              />
+            </div>
+          ) : null}
+
           {isLoadingArchive ? <ListSkeleton /> : null}
 
           {isErrorArchive ? (
@@ -268,9 +293,15 @@ export function ContactsIndex() {
             </div>
           ) : null}
 
-          {!isLoadingArchive && hasArchive ? (
+          {!isLoadingArchive && hasArchive && filteredArchive.length === 0 ? (
+            <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+              No archived contacts match your search.
+            </div>
+          ) : null}
+
+          {!isLoadingArchive && filteredArchive.length > 0 ? (
             <ArchivedContactsTable
-              contacts={deletedContacts ?? []}
+              contacts={filteredArchive}
               onRestore={openRestore}
             />
           ) : null}

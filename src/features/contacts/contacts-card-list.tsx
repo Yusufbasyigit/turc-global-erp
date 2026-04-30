@@ -114,7 +114,7 @@ function BalanceCell({ balance }: { balance: ContactBalance | undefined }) {
         isZero
           ? "text-muted-foreground"
           : balance.net_balance > 0
-            ? "text-foreground"
+            ? "text-rose-700"
             : "text-emerald-700",
       )}
       title={
