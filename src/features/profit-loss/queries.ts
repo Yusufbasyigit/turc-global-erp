@@ -93,6 +93,44 @@ export type Totals = {
   hasUnconverted: boolean;
 };
 
+export type MonthAggregate = {
+  totals: Totals;
+  rate: ResolvedRate;
+  hasMissingRate: boolean;
+};
+
+export function emptyTotals(): Totals {
+  return {
+    revenueUsd: 0,
+    expenseUsd: 0,
+    netUsd: 0,
+    revenueTry: 0,
+    expenseTry: 0,
+    netTry: 0,
+    revenueRealEstateUsd: 0,
+    revenueExportUsd: 0,
+    revenueRealEstateTry: 0,
+    revenueExportTry: 0,
+    hasUnconverted: false,
+  };
+}
+
+export function addTotals(a: Totals, b: Totals): Totals {
+  return {
+    revenueUsd: a.revenueUsd + b.revenueUsd,
+    expenseUsd: a.expenseUsd + b.expenseUsd,
+    netUsd: a.netUsd + b.netUsd,
+    revenueTry: a.revenueTry + b.revenueTry,
+    expenseTry: a.expenseTry + b.expenseTry,
+    netTry: a.netTry + b.netTry,
+    revenueRealEstateUsd: a.revenueRealEstateUsd + b.revenueRealEstateUsd,
+    revenueExportUsd: a.revenueExportUsd + b.revenueExportUsd,
+    revenueRealEstateTry: a.revenueRealEstateTry + b.revenueRealEstateTry,
+    revenueExportTry: a.revenueExportTry + b.revenueExportTry,
+    hasUnconverted: a.hasUnconverted || b.hasUnconverted,
+  };
+}
+
 function classifyRevenueSource(t: TransactionWithRelations): "real_estate" | "export" {
   return t.real_estate_deal_id ? "real_estate" : "export";
 }
@@ -200,6 +238,70 @@ export function resolveMonthlyRate(
   };
 }
 
+export function aggregateMonthlyTotals(
+  period: string,
+  transactions: TransactionWithRelations[],
+  snapshots: FxSnapshot[],
+  overrides: MonthlyFxOverride[],
+): MonthAggregate {
+  const rate = resolveMonthlyRate(period, "TRY", overrides, snapshots);
+  const totals = emptyTotals();
+
+  for (const t of transactions) {
+    if (istanbulYearMonth(t.transaction_date) !== period) continue;
+
+    let rowKind: RowKind | null = null;
+    if (isRevenue(t.kind)) rowKind = "revenue";
+    else if (isExpense(t.kind)) rowKind = "expense";
+    else if (isRealEstateReceipt(t)) rowKind = "revenue";
+    if (!rowKind) continue;
+
+    const native = Number(t.amount);
+    const cur = t.currency.toUpperCase();
+
+    let usd: number | null = null;
+    if (cur === "USD") {
+      usd = native;
+    } else if (cur === "TRY") {
+      if (rate.value) usd = native * rate.value;
+    } else {
+      totals.hasUnconverted = true;
+    }
+
+    if (cur === "TRY") {
+      if (rowKind === "revenue") totals.revenueTry += native;
+      else totals.expenseTry += native;
+    }
+    if (usd != null) {
+      if (rowKind === "revenue") totals.revenueUsd += usd;
+      else totals.expenseUsd += usd;
+    }
+    if (rowKind === "revenue") {
+      const src = classifyRevenueSource(t);
+      if (cur === "TRY") {
+        if (src === "real_estate") totals.revenueRealEstateTry += native;
+        else totals.revenueExportTry += native;
+      }
+      if (usd != null) {
+        if (src === "real_estate") totals.revenueRealEstateUsd += usd;
+        else totals.revenueExportUsd += usd;
+      }
+    }
+  }
+
+  totals.netUsd = totals.revenueUsd - totals.expenseUsd;
+  totals.netTry = totals.revenueTry - totals.expenseTry;
+
+  // A month is "missing rate" when there is at least one TRY transaction
+  // and no resolvable USD/TRY rate. Pure USD-only months are NOT missing.
+  const hasTry =
+    totals.revenueTry > 0 ||
+    totals.expenseTry > 0;
+  const hasMissingRate = hasTry && rate.value == null;
+
+  return { totals, rate, hasMissingRate };
+}
+
 function projectLabel(t: TransactionWithRelations): string {
   if (t.description?.trim()) return t.description.trim();
   if (t.expense_types?.name) return t.expense_types.name;
@@ -250,19 +352,7 @@ export function useMonthlyPandL(period: string): MonthlyPandL {
         stale: false,
       },
       rows: [],
-      totals: {
-        revenueUsd: 0,
-        expenseUsd: 0,
-        netUsd: 0,
-        revenueTry: 0,
-        expenseTry: 0,
-        netTry: 0,
-        revenueRealEstateUsd: 0,
-        revenueExportUsd: 0,
-        revenueRealEstateTry: 0,
-        revenueExportTry: 0,
-        hasUnconverted: false,
-      },
+      totals: emptyTotals(),
       isLoading,
       isError,
     };
@@ -270,20 +360,17 @@ export function useMonthlyPandL(period: string): MonthlyPandL {
 
     const snapshots = fxData ?? [];
     const overrides = overrideData ?? [];
-    const rate = resolveMonthlyRate(period, "TRY", overrides, snapshots);
+    const transactions = txData ?? [];
+
+    const { totals, rate } = aggregateMonthlyTotals(
+      period,
+      transactions,
+      snapshots,
+      overrides,
+    );
 
     const rows: PandLRow[] = [];
-    let revenueUsd = 0;
-    let expenseUsd = 0;
-    let revenueTry = 0;
-    let expenseTry = 0;
-    let revenueRealEstateUsd = 0;
-    let revenueExportUsd = 0;
-    let revenueRealEstateTry = 0;
-    let revenueExportTry = 0;
-    let hasUnconverted = false;
-
-    for (const t of txData ?? []) {
+    for (const t of transactions) {
       if (istanbulYearMonth(t.transaction_date) !== period) continue;
 
       let rowKind: RowKind | null = null;
@@ -296,35 +383,8 @@ export function useMonthlyPandL(period: string): MonthlyPandL {
       const cur = t.currency.toUpperCase();
 
       let usd: number | null = null;
-      if (cur === "USD") {
-        usd = native;
-      } else if (cur === "TRY") {
-        if (rate.value) usd = native * rate.value;
-      } else {
-        // Other currencies: not auto-converted. Surface as null so the table
-        // shows "—" with a tooltip rather than silently zeroing.
-        hasUnconverted = true;
-      }
-
-      if (cur === "TRY") {
-        if (rowKind === "revenue") revenueTry += native;
-        else expenseTry += native;
-      }
-      if (usd != null) {
-        if (rowKind === "revenue") revenueUsd += usd;
-        else expenseUsd += usd;
-      }
-      if (rowKind === "revenue") {
-        const src = classifyRevenueSource(t);
-        if (cur === "TRY") {
-          if (src === "real_estate") revenueRealEstateTry += native;
-          else revenueExportTry += native;
-        }
-        if (usd != null) {
-          if (src === "real_estate") revenueRealEstateUsd += usd;
-          else revenueExportUsd += usd;
-        }
-      }
+      if (cur === "USD") usd = native;
+      else if (cur === "TRY" && rate.value) usd = native * rate.value;
 
       rows.push({
         id: t.id,
@@ -348,19 +408,7 @@ export function useMonthlyPandL(period: string): MonthlyPandL {
       period,
       rate,
       rows,
-      totals: {
-        revenueUsd,
-        expenseUsd,
-        netUsd: revenueUsd - expenseUsd,
-        revenueTry,
-        expenseTry,
-        netTry: revenueTry - expenseTry,
-        revenueRealEstateUsd,
-        revenueExportUsd,
-        revenueRealEstateTry,
-        revenueExportTry,
-        hasUnconverted,
-      },
+      totals,
       isLoading: false,
       isError: false,
     };
@@ -488,4 +536,140 @@ export function useNetPandLTrend(periods: number = 12, anchor?: string): Trend {
     overrideLoading,
     overrideError,
   ]);
+}
+
+export type PeriodTotals = {
+  totalsByMonth: Map<string, Totals>;
+  missingRateMonths: Set<string>;
+  isLoading: boolean;
+  isError: boolean;
+};
+
+export function usePeriodTotals(periods: string[]): PeriodTotals {
+  const {
+    data: txData,
+    isLoading: txLoading,
+    isError: txError,
+  } = useQuery({
+    queryKey: transactionKeys.list(),
+    queryFn: listTransactions,
+  });
+  const {
+    data: fxData,
+    isLoading: fxLoading,
+    isError: fxError,
+  } = useQuery({
+    queryKey: treasuryKeys.fx(),
+    queryFn: listFxSnapshots,
+  });
+  const {
+    data: overrideData,
+    isLoading: overrideLoading,
+    isError: overrideError,
+  } = useQuery({
+    queryKey: profitLossKeys.overrides(),
+    queryFn: listMonthlyFxOverrides,
+  });
+
+  const periodsKey = periods.join(",");
+
+  return useMemo<PeriodTotals>(() => {
+    const isLoading = txLoading || fxLoading || overrideLoading;
+    const isError = txError || fxError || overrideError;
+    if (isLoading || isError) {
+      return {
+        totalsByMonth: new Map(),
+        missingRateMonths: new Set(),
+        isLoading,
+        isError,
+      };
+    }
+    const transactions = txData ?? [];
+    const snapshots = fxData ?? [];
+    const overrides = overrideData ?? [];
+
+    const totalsByMonth = new Map<string, Totals>();
+    const missingRateMonths = new Set<string>();
+    for (const p of periods) {
+      const agg = aggregateMonthlyTotals(p, transactions, snapshots, overrides);
+      totalsByMonth.set(p, agg.totals);
+      if (agg.hasMissingRate) missingRateMonths.add(p);
+    }
+    return { totalsByMonth, missingRateMonths, isLoading: false, isError: false };
+    // periodsKey is a stable string hash of `periods`; using it avoids
+    // re-running on every render when the caller passes a new array identity
+    // with identical contents (e.g. `quartersOfYear(year)`).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    periodsKey,
+    txData,
+    txLoading,
+    txError,
+    fxData,
+    fxLoading,
+    fxError,
+    overrideData,
+    overrideLoading,
+    overrideError,
+  ]);
+}
+
+export type TrendBucket = {
+  key: string;
+  label: string;
+  months: string[];
+};
+
+export type LabeledTrendPoint = {
+  key: string;
+  label: string;
+  netUsd: number | null;
+};
+
+export type LabeledTrend = {
+  points: LabeledTrendPoint[];
+  isLoading: boolean;
+  isError: boolean;
+};
+
+export function useNetPandLTrendBuckets(buckets: TrendBucket[]): LabeledTrend {
+  const allMonths = useMemo(() => {
+    const seen = new Set<string>();
+    for (const b of buckets) for (const m of b.months) seen.add(m);
+    return Array.from(seen);
+  }, [buckets]);
+
+  const periodTotals = usePeriodTotals(allMonths);
+
+  return useMemo<LabeledTrend>(() => {
+    if (periodTotals.isLoading) {
+      return { points: [], isLoading: true, isError: false };
+    }
+    if (periodTotals.isError) {
+      return { points: [], isLoading: false, isError: true };
+    }
+
+    const points: LabeledTrendPoint[] = buckets.map((b) => {
+      let net = 0;
+      let convertible = true;
+      for (const m of b.months) {
+        const t = periodTotals.totalsByMonth.get(m);
+        if (!t) {
+          convertible = false;
+          break;
+        }
+        if (periodTotals.missingRateMonths.has(m) || t.hasUnconverted) {
+          convertible = false;
+        }
+        net += t.netUsd;
+      }
+      return {
+        key: b.key,
+        label: b.label,
+        netUsd: convertible ? net : null,
+      };
+    });
+
+    return { points, isLoading: false, isError: false };
+  }, [buckets, periodTotals]);
 }
