@@ -17,16 +17,16 @@ export function ProformaPdfHeader({ data }: { data: ProformaData }) {
         <View style={proformaStyles.letterheadCol}>
           <Text style={proformaStyles.kicker}>EXPÉDITEUR · FROM</Text>
           <Text style={[proformaStyles.companyName, { marginTop: 4 }]}>
-            {pdfText("Turc Global Danışmanlık ve Dış Ticaret LTD. ŞTİ.")}
+            {pdfText(data.company.name)}
           </Text>
           <Text style={proformaStyles.muted}>
-            {pdfText("Çobançeşme Mah., Sanayi Cad. Vadi Sk. No:5")}
+            {pdfText(data.company.addressLine1)}
           </Text>
           <Text style={proformaStyles.muted}>
-            {pdfText("34196 Bahçelievler · İstanbul · Türkiye")}
+            {pdfText(data.company.addressLine2)}
           </Text>
           <Text style={proformaStyles.muted}>
-            T +90 530 927 57 89 · E info@turcglobal.com
+            {pdfText(`T ${data.company.phone} · E ${data.company.email}`)}
           </Text>
         </View>
         <View style={proformaStyles.letterheadColRight}>

@@ -8,6 +8,14 @@ export type ProformaLine = {
   photoUrl: string | null;
 };
 
+export type ProformaCompany = {
+  name: string;
+  addressLine1: string;
+  addressLine2: string;
+  phone: string;
+  email: string;
+};
+
 export type ProformaData = {
   offerNumber: string;
   offerDate: string | null;
@@ -16,6 +24,7 @@ export type ProformaData = {
   incoterm: string | null;
   deliveryTimeline: string | null;
   paymentTerms: string | null;
+  company: ProformaCompany;
   customer: {
     companyName: string;
     contactPerson: string | null;

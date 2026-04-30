@@ -25,6 +25,14 @@ type DocumentReactElement = Parameters<typeof pdf>[0];
 const OUT_DIR = "/tmp/sample-pdfs";
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
+const SAMPLE_COMPANY = {
+  name: "Turc Global Danışmanlık ve Dış Ticaret LTD. ŞTİ.",
+  addressLine1: "Çobançeşme Mah., Sanayi Cad. Vadi Sk. No:5",
+  addressLine2: "34196 Bahçelievler · İstanbul · Türkiye",
+  phone: "+90 530 927 57 89",
+  email: "info@turcglobal.com",
+};
+
 const proformaLong: ProformaData = {
   offerNumber: "TG-2026-0042",
   offerDate: "2026-04-28",
@@ -33,6 +41,7 @@ const proformaLong: ProformaData = {
   incoterm: "FOB Istanbul",
   deliveryTimeline: "30 jours après réception du paiement",
   paymentTerms: "30% à la commande, 70% avant expédition",
+  company: SAMPLE_COMPANY,
   customer: {
     companyName: "Sociedad Comercial Mediterráneo S.L.",
     contactPerson: "María González",
@@ -168,6 +177,7 @@ const statementLong: StatementData = {
     invoiceCurrency: "EUR",
     freightCost: 2850,
   },
+  company: SAMPLE_COMPANY,
   customer: {
     companyName: "Sociedad Comercial Mediterráneo S.L.",
     contactPerson: "María González",

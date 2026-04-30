@@ -49,6 +49,20 @@ export type RateRefreshRun = {
   error_message: string | null;
 };
 
+// Inline until `npm run db:types` regenerates `database.ts` after the
+// `app_settings` migration lands. Swap to PublicTable<"app_settings"> then.
+export type AppSettings = {
+  id: true;
+  company_name: string;
+  address_line1: string;
+  address_line2: string;
+  phone: string;
+  email: string;
+  updated_time: string;
+  updated_by: string | null;
+};
+export type AppSettingsUpdate = Partial<Omit<AppSettings, "id" | "updated_time">>;
+
 export type TreasuryMovement = PublicTable<"treasury_movements">["Row"];
 export type TreasuryMovementInsert = PublicTable<"treasury_movements">["Insert"];
 export type TreasuryMovementUpdate = PublicTable<"treasury_movements">["Update"];

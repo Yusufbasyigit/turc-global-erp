@@ -18,6 +18,14 @@ export type StatementPayment = {
   partialAnnotation: string | null;
 };
 
+export type StatementCompany = {
+  name: string;
+  addressLine1: string;
+  addressLine2: string;
+  phone: string;
+  email: string;
+};
+
 export type StatementData = {
   shipment: {
     name: string;
@@ -28,6 +36,7 @@ export type StatementData = {
     invoiceCurrency: string;
     freightCost: number;
   };
+  company: StatementCompany;
   customer: {
     companyName: string;
     contactPerson: string | null;

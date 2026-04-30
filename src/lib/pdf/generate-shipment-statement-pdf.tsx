@@ -9,6 +9,7 @@ import {
   shipmentInvoiceSignedUrl,
 } from "@/features/shipments/queries";
 import { listTransactionsForContact } from "@/features/transactions/queries";
+import { getAppSettings } from "@/features/settings/queries";
 import {
   allocateFifo,
   type LedgerEvent,
@@ -68,13 +69,16 @@ export async function assembleShipmentStatementData(
 ): Promise<StatementData> {
   const supabase = createClient();
 
-  const { data: shipmentRow, error: shipErr } = await supabase
-    .from("shipments")
-    .select(
-      "id, name, customer_id, invoice_currency, freight_cost, etd_date, eta_date, container_type, tracking_number, customer:contacts!shipments_customer_id_fkey(company_name, contact_person, address, city, countries(name_en))",
-    )
-    .eq("id", shipmentId)
-    .single();
+  const [{ data: shipmentRow, error: shipErr }, settings] = await Promise.all([
+    supabase
+      .from("shipments")
+      .select(
+        "id, name, customer_id, invoice_currency, freight_cost, etd_date, eta_date, container_type, tracking_number, customer:contacts!shipments_customer_id_fkey(company_name, contact_person, address, city, countries(name_en))",
+      )
+      .eq("id", shipmentId)
+      .single(),
+    getAppSettings(),
+  ]);
   if (shipErr) throw shipErr;
   if (!shipmentRow) throw new Error("Shipment not found");
 
@@ -267,6 +271,13 @@ export async function assembleShipmentStatementData(
       etaDate: s.eta_date,
       invoiceCurrency: currency,
       freightCost,
+    },
+    company: {
+      name: settings.company_name,
+      addressLine1: settings.address_line1,
+      addressLine2: settings.address_line2,
+      phone: settings.phone,
+      email: settings.email,
     },
     customer: {
       companyName: s.customer?.company_name ?? "—",

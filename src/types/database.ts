@@ -79,6 +79,39 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          address_line1: string
+          address_line2: string
+          company_name: string
+          email: string
+          id: boolean
+          phone: string
+          updated_by: string | null
+          updated_time: string
+        }
+        Insert: {
+          address_line1: string
+          address_line2: string
+          company_name: string
+          email: string
+          id?: boolean
+          phone: string
+          updated_by?: string | null
+          updated_time?: string
+        }
+        Update: {
+          address_line1?: string
+          address_line2?: string
+          company_name?: string
+          email?: string
+          id?: boolean
+          phone?: string
+          updated_by?: string | null
+          updated_time?: string
+        }
+        Relationships: []
+      }
       contact_notes: {
         Row: {
           body: string

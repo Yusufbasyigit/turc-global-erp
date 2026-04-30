@@ -5,6 +5,7 @@ import {
 } from "@/lib/constants";
 import { setOrderProposalPdfPath } from "@/features/orders/mutations";
 import { orderAttachmentSignedUrl } from "@/features/orders/queries";
+import { getAppSettings } from "@/features/settings/queries";
 import type { ProformaData, ProformaLine } from "./proforma-pdf-types";
 
 async function signProductPhotoUrl(path: string | null): Promise<string | null> {
@@ -21,21 +22,24 @@ export async function assembleProformaData(
 ): Promise<ProformaData> {
   const supabase = createClient();
 
-  const { data: order, error: orderErr } = await supabase
-    .from("orders")
-    .select(
-      "*, customer:contacts!orders_customer_id_fkey(id, company_name, contact_person, address, city, countries(code, name_en))",
-    )
-    .eq("id", orderId)
-    .single();
+  const [{ data: order, error: orderErr }, { data: lines, error: linesErr }, settings] =
+    await Promise.all([
+      supabase
+        .from("orders")
+        .select(
+          "*, customer:contacts!orders_customer_id_fkey(id, company_name, contact_person, address, city, countries(code, name_en))",
+        )
+        .eq("id", orderId)
+        .single(),
+      supabase
+        .from("order_details")
+        .select("*")
+        .eq("order_id", orderId)
+        .order("line_number", { ascending: true }),
+      getAppSettings(),
+    ]);
   if (orderErr) throw orderErr;
   if (!order) throw new Error("Order not found");
-
-  const { data: lines, error: linesErr } = await supabase
-    .from("order_details")
-    .select("*")
-    .eq("order_id", orderId)
-    .order("line_number", { ascending: true });
   if (linesErr) throw linesErr;
 
   const photoUrls = await Promise.all(
@@ -91,6 +95,13 @@ export async function assembleProformaData(
     incoterm: o.incoterm,
     deliveryTimeline: o.delivery_timeline,
     paymentTerms: o.payment_terms,
+    company: {
+      name: settings.company_name,
+      addressLine1: settings.address_line1,
+      addressLine2: settings.address_line2,
+      phone: settings.phone,
+      email: settings.email,
+    },
     customer: {
       companyName: o.customer?.company_name ?? "—",
       contactPerson: o.customer?.contact_person ?? null,
