@@ -191,88 +191,76 @@ export async function writeShipmentAccruals(args: {
     );
   }
 
-  const billingPayload = buildAccrualPayload({
-    shipment,
-    kind: "shipment_billing",
-    amount: sales,
-    currency: shipment.invoice_currency,
-    description: `Billing for shipment: ${shipment.name}`,
-    reference: shipment.name,
-    contactId: shipment.customer_id,
-    date: today,
-    userId: args.userId,
-    now: args.now,
-  });
-
-  const { data: billingRow, error: billingErr } = await supabase
-    .from("transactions")
-    .insert(billingPayload)
-    .select()
-    .single();
-  if (billingErr) throw billingErr;
-
-  // Track inserted accrual rows so we can roll the booking event back if the
-  // second or third insert fails — otherwise the booking month gets revenue
-  // without matching COGS/freight and the P&L silently overstates margin.
-  const insertedIds: string[] = [billingRow.id];
-  const rollback = async () => {
-    if (insertedIds.length === 0) return;
-    await supabase.from("transactions").delete().in("id", insertedIds).then();
-  };
-
-  let cogsRow: Transaction | null = null;
-  if (cogs > 0) {
-    const cogsPayload = buildAccrualPayload({
+  const payloads: TransactionInsert[] = [
+    buildAccrualPayload({
       shipment,
-      kind: "shipment_cogs",
-      amount: cogs,
+      kind: "shipment_billing",
+      amount: sales,
       currency: shipment.invoice_currency,
-      description: `COGS for shipment: ${shipment.name}`,
+      description: `Billing for shipment: ${shipment.name}`,
       reference: shipment.name,
-      contactId: null,
+      contactId: shipment.customer_id,
       date: today,
       userId: args.userId,
       now: args.now,
-    });
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert(cogsPayload)
-      .select()
-      .single();
-    if (error) {
-      await rollback().catch(() => {});
-      throw error;
-    }
-    cogsRow = data;
-    insertedIds.push(data.id);
+    }),
+  ];
+  if (cogs > 0) {
+    payloads.push(
+      buildAccrualPayload({
+        shipment,
+        kind: "shipment_cogs",
+        amount: cogs,
+        currency: shipment.invoice_currency,
+        description: `COGS for shipment: ${shipment.name}`,
+        reference: shipment.name,
+        contactId: null,
+        date: today,
+        userId: args.userId,
+        now: args.now,
+      }),
+    );
+  }
+  if (freight > 0) {
+    payloads.push(
+      buildAccrualPayload({
+        shipment,
+        kind: "shipment_freight",
+        amount: freight,
+        currency: shipment.freight_currency ?? shipment.invoice_currency,
+        description: `Freight for shipment: ${shipment.name}`,
+        reference: shipment.name,
+        contactId: null,
+        date: today,
+        userId: args.userId,
+        now: args.now,
+      }),
+    );
   }
 
-  let freightRow: Transaction | null = null;
-  if (freight > 0) {
-    const freightPayload = buildAccrualPayload({
-      shipment,
-      kind: "shipment_freight",
-      amount: freight,
-      currency: shipment.freight_currency ?? shipment.invoice_currency,
-      description: `Freight for shipment: ${shipment.name}`,
-      reference: shipment.name,
-      contactId: null,
-      date: today,
-      userId: args.userId,
-      now: args.now,
-    });
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert(freightPayload)
-      .select()
-      .single();
-    if (error) {
-      await rollback().catch(() => {});
-      throw error;
-    }
-    freightRow = data;
-    insertedIds.push(data.id);
+  // Single multi-row INSERT — PostgreSQL executes this as one statement,
+  // so the trio is naturally atomic: a constraint violation on any row
+  // (e.g. unique violation from a duplicate Book click, blocked by
+  // uniq_shipment_accrual) rolls back all of them. No manual cleanup
+  // path means no silent rollback failures.
+  const { data: insertedRows, error } = await supabase
+    .from("transactions")
+    .insert(payloads)
+    .select();
+  if (error) throw error;
+  if (!insertedRows || insertedRows.length !== payloads.length) {
+    throw new Error(
+      `Batch insert returned ${insertedRows?.length ?? 0} rows, expected ${payloads.length}.`,
+    );
   }
+
+  // Rows return in insert order — billing is always first, then cogs and
+  // freight in the order they were appended.
+  const billingRow = insertedRows[0];
+  let nextIdx = 1;
+  const cogsRow: Transaction | null = cogs > 0 ? insertedRows[nextIdx++] : null;
+  const freightRow: Transaction | null =
+    freight > 0 ? insertedRows[nextIdx++] : null;
 
   return {
     billing: billingRow,
