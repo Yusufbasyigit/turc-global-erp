@@ -4,6 +4,7 @@ import type {
   PriceSnapshot,
   RateRefreshRun,
 } from "@/lib/supabase/types";
+import { todayIsoDate } from "@/lib/proforma/istanbul-date";
 import { FX_STALE_MS } from "./constants";
 
 export function latestFxFetchedAt(fxMap: Map<string, FxSnapshot>): Date | null {
@@ -104,7 +105,7 @@ export function formatQuantity(value: number): string {
 }
 
 export function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayIsoDate();
 }
 
 // Cron fires Mon-Fri at 06:00 UTC. On Monday morning the most recent cron
