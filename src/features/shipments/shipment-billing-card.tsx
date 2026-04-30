@@ -13,6 +13,7 @@ import {
   type ContactLedgerRow,
 } from "@/features/transactions/queries";
 import {
+  computeShipmentCogs,
   computeShipmentTotal,
   findShipmentBillingTransaction,
   shipmentKeys,
@@ -46,14 +47,22 @@ function ShipmentBillingCardImpl({
   shipmentId,
   customerId,
   currency,
+  freightCost,
+  freightCurrency,
 }: {
   shipmentId: string;
   customerId: string | null;
   currency: string;
+  freightCost: number | null;
+  freightCurrency: string | null;
 }) {
   const totalQ = useQuery({
     queryKey: shipmentKeys.billingTotal(shipmentId),
     queryFn: () => computeShipmentTotal(shipmentId),
+  });
+  const cogsQ = useQuery({
+    queryKey: shipmentKeys.cogsTotal(shipmentId),
+    queryFn: () => computeShipmentCogs(shipmentId),
   });
   const txnQ = useQuery({
     queryKey: shipmentKeys.billingTxn(shipmentId),
@@ -66,6 +75,18 @@ function ShipmentBillingCardImpl({
   });
 
   const liveTotal = totalQ.data ?? 0;
+  const liveCogs = cogsQ.data ?? 0;
+  const freightAmt = Number(freightCost ?? 0);
+  const freightInSalesCurrency =
+    freightAmt > 0 && (freightCurrency ?? currency) === currency;
+  // Only fold freight into the margin when its currency matches sales —
+  // otherwise the subtraction is meaningless. Show a small note in that case.
+  const grossMargin =
+    liveTotal -
+    liveCogs -
+    (freightInSalesCurrency ? freightAmt : 0);
+  const grossMarginPct =
+    liveTotal > 0 ? (grossMargin / liveTotal) * 100 : null;
   const txn = txnQ.data ?? null;
   const billedAmount = txn ? Number(txn.amount) : null;
   // Compare currencies first so a mismatched txn currency is always flagged
@@ -135,6 +156,60 @@ function ShipmentBillingCardImpl({
               Not yet billed
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2">
+        <div>
+          <div className="text-[11px] uppercase text-muted-foreground">
+            Cost of goods
+          </div>
+          {cogsQ.isLoading ? (
+            <Skeleton className="mt-1 h-6 w-32" />
+          ) : (
+            <div className="mt-1 text-base font-semibold tabular-nums">
+              {formatMoney(liveCogs)} {currency}
+            </div>
+          )}
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Sum of qty × purchase price (actual when set, estimate
+            otherwise) on the order lines.
+          </p>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase text-muted-foreground">
+            Gross margin
+          </div>
+          {totalQ.isLoading || cogsQ.isLoading ? (
+            <Skeleton className="mt-1 h-6 w-32" />
+          ) : liveTotal > 0 ? (
+            <div className="mt-1 flex items-baseline gap-2">
+              <span
+                className={
+                  "text-base font-semibold tabular-nums " +
+                  (grossMargin >= 0 ? "text-emerald-700" : "text-rose-700")
+                }
+              >
+                {formatMoney(grossMargin)} {currency}
+              </span>
+              {grossMarginPct !== null ? (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  ({grossMarginPct.toFixed(1)}%)
+                </span>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-1 text-sm text-muted-foreground">—</div>
+          )}
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Sales − COGS
+            {freightInSalesCurrency
+              ? " − freight"
+              : freightAmt > 0
+                ? " (freight excluded — different currency)"
+                : ""}
+            .
+          </p>
         </div>
       </div>
 

@@ -27,10 +27,13 @@ export const shipmentKeys = {
     [...shipmentKeys.all, "billingTotal", id] as const,
   billingTxn: (id: string) =>
     [...shipmentKeys.all, "billingTxn", id] as const,
+  cogsTotal: (id: string) =>
+    [...shipmentKeys.all, "cogsTotal", id] as const,
   totals: (id: string) => [...shipmentKeys.all, "totals", id] as const,
 };
 
 export {
+  computeShipmentCogs,
   computeShipmentTotal,
   findShipmentBillingTransaction,
 } from "./billing";

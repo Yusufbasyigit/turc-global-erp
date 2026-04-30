@@ -346,6 +346,8 @@ export function ShipmentDetail({ id }: { id: string }) {
         shipmentId={id}
         customerId={shipment.customer_id}
         currency={shipment.invoice_currency}
+        freightCost={shipment.freight_cost}
+        freightCurrency={shipment.freight_currency}
       />
 
       {/* Orders in this shipment */}
