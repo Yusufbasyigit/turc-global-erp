@@ -515,7 +515,7 @@ export async function refreshAccrualsForShipmentTransition(args: {
     );
   }
 
-  await upsertAccrual({
+  const billingResult = await upsertAccrual({
     shipment,
     kind: "shipment_billing",
     amount: sales,
@@ -526,7 +526,7 @@ export async function refreshAccrualsForShipmentTransition(args: {
     userId: args.userId,
     now: args.now,
   });
-  await upsertAccrual({
+  const cogsResult = await upsertAccrual({
     shipment,
     kind: "shipment_cogs",
     amount: cogs,
@@ -537,7 +537,7 @@ export async function refreshAccrualsForShipmentTransition(args: {
     userId: args.userId,
     now: args.now,
   });
-  await upsertAccrual({
+  const freightResult = await upsertAccrual({
     shipment,
     kind: "shipment_freight",
     amount: freight,
@@ -548,6 +548,18 @@ export async function refreshAccrualsForShipmentTransition(args: {
     userId: args.userId,
     now: args.now,
   });
+  // If a kind didn't have a row before but upsertAccrual created one,
+  // store the new id on its snapshot so restoreAccrualSnapshots can DELETE
+  // the orphan on cascade failure (otherwise it would silently leak).
+  const noteCreated = (kind: AccrualKind, newId: string | null) => {
+    const s = snapshots.find((x) => x.kind === kind);
+    if (s && !s.transactionId && s.previousAmount == null && newId) {
+      s.transactionId = newId;
+    }
+  };
+  noteCreated("shipment_billing", billingResult.id);
+  noteCreated("shipment_cogs", cogsResult.id);
+  noteCreated("shipment_freight", freightResult.id);
   // Acknowledge supabase var is intentionally referenced for any future query.
   void supabase;
 
@@ -574,21 +586,58 @@ export const refreshBillingForShipmentTransition = async (args: {
   };
 };
 
+export type SnapshotRestoreAction =
+  | { type: "noop" }
+  | { type: "delete"; id: string }
+  | {
+      type: "update";
+      id: string;
+      amount: number;
+      edited: { edited_by: string | null; edited_time: string | null };
+    };
+
+// Pure: decide what to do with one snapshot on rollback.
+// - transactionId null → row never existed and was never created, nothing to do.
+// - previousAmount null but transactionId set → row was created during the
+//   transition (refreshAccrualsForShipmentTransition writes the new id back
+//   into the snapshot), so undo by DELETE.
+// - otherwise → row pre-existed, restore prior amount + edited fields.
+export function planSnapshotRestore(s: AccrualSnapshot): SnapshotRestoreAction {
+  if (!s.transactionId) return { type: "noop" };
+  if (s.previousAmount == null) {
+    return { type: "delete", id: s.transactionId };
+  }
+  return {
+    type: "update",
+    id: s.transactionId,
+    amount: s.previousAmount,
+    edited: s.previousEdited,
+  };
+}
+
 export async function restoreAccrualSnapshots(
   snapshots: AccrualSnapshot[],
 ): Promise<void> {
   const supabase = createClient();
   for (const s of snapshots) {
-    if (!s.transactionId) continue;
-    if (s.previousAmount == null) continue;
+    const action = planSnapshotRestore(s);
+    if (action.type === "noop") continue;
+    if (action.type === "delete") {
+      const { error } = await supabase
+        .from("transactions")
+        .delete()
+        .eq("id", action.id);
+      if (error) throw error;
+      continue;
+    }
     const { error } = await supabase
       .from("transactions")
       .update({
-        amount: s.previousAmount,
-        edited_by: s.previousEdited.edited_by,
-        edited_time: s.previousEdited.edited_time,
+        amount: action.amount,
+        edited_by: action.edited.edited_by,
+        edited_time: action.edited.edited_time,
       })
-      .eq("id", s.transactionId);
+      .eq("id", action.id);
     if (error) throw error;
   }
 }

@@ -1,6 +1,8 @@
 import {
   computeCogsTotal,
   computeSalesTotal,
+  planSnapshotRestore,
+  type AccrualSnapshot,
   type ShipmentLineInput,
 } from "./billing";
 
@@ -123,6 +125,57 @@ section("9. Net profit example end-to-end (matches plan verification case)");
   assertEq("sales", sales, 100);
   assertEq("cogs (actual)", cogs, 65);
   assertEq("net profit", net, 25);
+}
+
+function snap(
+  overrides: Partial<AccrualSnapshot> = {},
+): AccrualSnapshot {
+  return {
+    kind: "shipment_billing",
+    transactionId: null,
+    previousAmount: null,
+    previousEdited: { edited_by: null, edited_time: null },
+    ...overrides,
+  };
+}
+
+section("10. planSnapshotRestore: no row before, none created → noop");
+{
+  const action = planSnapshotRestore(
+    snap({ transactionId: null, previousAmount: null }),
+  );
+  assertEq("noop on missing row", action.type, "noop");
+}
+
+section("11. planSnapshotRestore: row pre-existed → update back to prior amount");
+{
+  const action = planSnapshotRestore(
+    snap({
+      transactionId: "txn-1",
+      previousAmount: 100,
+      previousEdited: { edited_by: "user-x", edited_time: "2026-04-30T00:00:00Z" },
+    }),
+  );
+  assertEq("update type", action.type, "update");
+  if (action.type === "update") {
+    assertEq("update id", action.id, "txn-1");
+    assertEq("update amount", action.amount, 100);
+    assertEq("update edited_by", action.edited.edited_by, "user-x");
+  }
+}
+
+section("12. planSnapshotRestore: row newly created in transition → delete");
+{
+  // After upsertAccrual creates a row, refreshAccrualsForShipmentTransition
+  // writes the new id back into the snapshot while keeping previousAmount=null.
+  // Rolling back must DELETE it (the original bug: this case was a noop).
+  const action = planSnapshotRestore(
+    snap({ transactionId: "txn-new", previousAmount: null }),
+  );
+  assertEq("delete type", action.type, "delete");
+  if (action.type === "delete") {
+    assertEq("delete id", action.id, "txn-new");
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
