@@ -9,6 +9,7 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "typecheck": "tsc --noEmit",
+    "test": "node scripts/run-tests.mjs",
     "db:types": "sh -c '. ./.env.local && OUT=$(mktemp) && supabase gen types typescript --project-id $SUPABASE_PROJECT_REF --schema public > $OUT && mv $OUT src/types/database.ts'"
   },
   "dependencies": {
