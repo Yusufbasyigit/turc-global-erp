@@ -58,12 +58,14 @@ import {
   KDV_RATES,
   type AccountWithCustody,
   type Contact,
+  type DisabledKind,
   type TransactionInsert,
   type TransactionKind,
 } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
 
 import {
+  DISABLED_KIND_REASONS,
   KIND_CATEGORIES,
   TRANSACTION_KIND_DESCRIPTIONS,
   TRANSACTION_KIND_LABELS,
@@ -959,7 +961,7 @@ export function TransactionFormDialog({
                                     <div>{card}</div>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    Coming in a later wave.
+                                    {DISABLED_KIND_REASONS[k as DisabledKind]}
                                   </TooltipContent>
                                 </Tooltip>
                               );

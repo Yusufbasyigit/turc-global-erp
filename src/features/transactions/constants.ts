@@ -1,4 +1,4 @@
-import type { TransactionKind } from "@/lib/supabase/types";
+import type { DisabledKind, TransactionKind } from "@/lib/supabase/types";
 
 export const TRANSACTION_KIND_LABELS: Record<TransactionKind, string> = {
   client_payment: "Client payment",
@@ -14,6 +14,17 @@ export const TRANSACTION_KIND_LABELS: Record<TransactionKind, string> = {
   shipment_billing: "Shipment billing",
   shipment_cogs: "Shipment COGS",
   shipment_freight: "Shipment freight",
+};
+
+export const DISABLED_KIND_REASONS: Record<DisabledKind, string> = {
+  shipment_billing:
+    "Created automatically when a shipment is booked. Manage from the shipment detail page.",
+  shipment_cogs:
+    "Created automatically when a shipment is booked. Manage from the shipment detail page.",
+  shipment_freight:
+    "Created automatically when a shipment is booked. Manage from the shipment detail page.",
+  profit_distribution:
+    "Recorded from the Partners page using the profit-distribution dialog.",
 };
 
 export const TRANSACTION_KIND_DESCRIPTIONS: Record<TransactionKind, string> = {
