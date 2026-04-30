@@ -30,6 +30,15 @@ export type TriggeredBy = "cron" | "manual";
 // client. Inserts stay type-safe via the imported *Insert types.
 type Client = SupabaseClient;
 
+// External rate APIs occasionally hang; cap each request so a single slow
+// upstream can't pin a refresh run forever. 15s is comfortably above any
+// healthy response we've seen and well below the edge function ceiling.
+const REFRESH_FETCH_TIMEOUT_MS = 15_000;
+
+function fetchWithTimeout(url: string): Promise<Response> {
+  return fetch(url, { signal: AbortSignal.timeout(REFRESH_FETCH_TIMEOUT_MS) });
+}
+
 type FrankfurterLatest = {
   base: string;
   date: string;
@@ -104,7 +113,7 @@ export async function refreshFxSnapshots(
       continue;
     }
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${FX_API_BASE}/latest?from=${encodeURIComponent(code)}&to=USD`,
       );
       if (!res.ok) {
@@ -166,7 +175,7 @@ export async function refreshPriceSnapshots(
       continue;
     }
     try {
-      const res = await fetch(`${COINPAPRIKA_API}/tickers/${id}`);
+      const res = await fetchWithTimeout(`${COINPAPRIKA_API}/tickers/${id}`);
       if (!res.ok) {
         errors.push(`${code}: ${res.status} ${res.statusText}`);
         continue;
@@ -197,7 +206,7 @@ export async function refreshPriceSnapshots(
 
   if (needs.gold) {
     try {
-      const res = await fetch(`${GOLD_API_BASE}/XAU`);
+      const res = await fetchWithTimeout(`${GOLD_API_BASE}/XAU`);
       if (res.ok) {
         const json = (await res.json()) as GoldApiResponse;
         if (Number.isFinite(json?.price) && json.price > 0) {
@@ -214,7 +223,7 @@ export async function refreshPriceSnapshots(
   }
   if (needs.silver) {
     try {
-      const res = await fetch(`${GOLD_API_BASE}/XAG`);
+      const res = await fetchWithTimeout(`${GOLD_API_BASE}/XAG`);
       if (res.ok) {
         const json = (await res.json()) as GoldApiResponse;
         if (Number.isFinite(json?.price) && json.price > 0) {
