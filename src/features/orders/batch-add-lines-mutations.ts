@@ -2,9 +2,11 @@ import { createClient } from "@/lib/supabase/client";
 import { AUTH_DISABLED } from "@/lib/auth-mode";
 import type {
   OrderDetailInsert,
+  Product,
   ProductInsert,
 } from "@/lib/supabase/types";
 import { notesFromLine } from "./proforma-helpers";
+import { snapshotFromProduct } from "./mutations";
 import {
   assertShipmentEditable,
   refreshShipmentBilling,
@@ -64,61 +66,100 @@ export async function batchAddLinesFromProforma(args: {
   if (countErr) throw countErr;
   const startLine = existing?.[0]?.line_number ?? 0;
 
+  const trimmedNames = lines
+    .map((l) => l.proposed_product_name.trim())
+    .filter((n) => n.length > 0);
+  const existingByLowerName = new Map<string, Product>();
+  if (trimmedNames.length > 0) {
+    const { data: matches, error: matchErr } = await supabase
+      .from("products")
+      .select("*")
+      .in("product_name", trimmedNames)
+      .eq("is_active", true);
+    if (matchErr) throw matchErr;
+    for (const p of matches ?? []) {
+      const key = (p.product_name ?? "").trim().toLowerCase();
+      if (!key) continue;
+      const prev = existingByLowerName.get(key);
+      if (
+        !prev ||
+        (p.created_time ?? "") > (prev.created_time ?? "")
+      ) {
+        existingByLowerName.set(key, p);
+      }
+    }
+  }
+
   const createdProductIds: string[] = [];
   const createdDetailIds: string[] = [];
 
   try {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const productId =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`;
+      const trimmedName = line.proposed_product_name.trim();
+      const matched = existingByLowerName.get(trimmedName.toLowerCase()) ?? null;
 
-      const productPayload: ProductInsert = {
-        product_id: productId,
-        product_name: line.proposed_product_name.trim(),
-        unit: line.primary_unit.trim() || null,
-        est_purchase_price: line.unit_price,
-        est_currency: (line.line_currency || fallbackCurrency) ?? null,
-        hs_code:
-          line.hs_code && line.hs_code.trim() ? line.hs_code.trim() : null,
-        is_active: true,
-        created_by: userId,
-        created_time: now,
-        edited_by: userId,
-        edited_time: now,
-      };
+      let productId: string;
+      let snap: ReturnType<typeof snapshotFromProduct> | null = null;
 
-      const { data: productRow, error: productErr } = await supabase
-        .from("products")
-        .insert(productPayload)
-        .select("product_id")
-        .single();
-      if (productErr) throw productErr;
-      createdProductIds.push(productRow.product_id);
+      if (matched) {
+        productId = matched.product_id;
+        snap = snapshotFromProduct(matched);
+      } else {
+        productId =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`;
+
+        const productPayload: ProductInsert = {
+          product_id: productId,
+          product_name: trimmedName,
+          unit: line.primary_unit.trim() || null,
+          est_purchase_price: line.unit_price,
+          est_currency: (line.line_currency || fallbackCurrency) ?? null,
+          hs_code:
+            line.hs_code && line.hs_code.trim() ? line.hs_code.trim() : null,
+          is_active: true,
+          created_by: userId,
+          created_time: now,
+          edited_by: userId,
+          edited_time: now,
+        };
+
+        const { data: productRow, error: productErr } = await supabase
+          .from("products")
+          .insert(productPayload)
+          .select("product_id")
+          .single();
+        if (productErr) throw productErr;
+        createdProductIds.push(productRow.product_id);
+        productId = productRow.product_id;
+      }
 
       const detailPayload: OrderDetailInsert = {
         order_id: orderId,
-        product_id: productRow.product_id,
+        product_id: productId,
         line_number: startLine + i + 1,
-        product_name_snapshot: line.proposed_product_name.trim(),
-        product_description_snapshot: null,
-        product_photo_snapshot: null,
-        unit_snapshot: line.primary_unit.trim() || "",
-        cbm_per_unit_snapshot: null,
-        weight_kg_per_unit_snapshot: null,
-        packaging_type: null,
-        package_length_cm: null,
-        package_width_cm: null,
-        package_height_cm: null,
-        units_per_package: null,
+        product_name_snapshot:
+          snap?.product_name_snapshot || trimmedName,
+        product_description_snapshot:
+          snap?.product_description_snapshot ?? null,
+        product_photo_snapshot: snap?.product_photo_snapshot ?? null,
+        unit_snapshot:
+          snap?.unit_snapshot || line.primary_unit.trim() || "",
+        cbm_per_unit_snapshot: snap?.cbm_per_unit_snapshot ?? null,
+        weight_kg_per_unit_snapshot: snap?.weight_kg_per_unit_snapshot ?? null,
+        packaging_type: snap?.packaging_type ?? null,
+        package_length_cm: snap?.package_length_cm ?? null,
+        package_width_cm: snap?.package_width_cm ?? null,
+        package_height_cm: snap?.package_height_cm ?? null,
+        units_per_package: snap?.units_per_package ?? null,
         quantity: line.primary_quantity,
         unit_sales_price: null,
         est_purchase_unit_price: line.unit_price,
         actual_purchase_price: null,
         vat_rate: null,
-        supplier_id: null,
+        supplier_id: snap?.supplier_id ?? null,
         notes: notesFromLine(line),
         created_by: userId,
         created_time: now,
