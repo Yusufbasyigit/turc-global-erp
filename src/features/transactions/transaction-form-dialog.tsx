@@ -447,6 +447,12 @@ export function TransactionFormDialog({
     }
   }, [vatComputed, showVat, form]);
 
+  // Only auto-fill amount/currency when the *user* picks a different invoice.
+  // unpaidInvoices is in scope but intentionally excluded from deps: a
+  // background refetch returns a new array reference every time, which
+  // would re-fire this effect and stomp the user's manual edits to
+  // amount/currency after they picked an invoice.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (kind !== "supplier_payment" || !relatedPayableId) return;
     const picked = unpaidInvoices.find((i) => i.id === relatedPayableId);
@@ -461,7 +467,7 @@ export function TransactionFormDialog({
         { shouldValidate: false },
       );
     }
-  }, [kind, relatedPayableId, unpaidInvoices, form]);
+  }, [kind, relatedPayableId]);
 
   // Pre-fill the expense category with `Uncategorized` so a fresh expense
   // has a valid required category by default. Edit mode keeps the saved

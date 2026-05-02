@@ -153,6 +153,10 @@ export function RecurringPaymentFormDialog({
     mode: "onBlur",
   });
 
+  // Seed once per open/target — keying off `template.id` (not the full
+  // object) prevents a background refetch from blowing away the user's
+  // in-progress edits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return;
     if (isEdit && template) {
@@ -175,7 +179,7 @@ export function RecurringPaymentFormDialog({
     } else {
       form.reset({ ...DEFAULT_VALUES, effective_from: firstOfThisMonth() });
     }
-  }, [open, isEdit, template, form]);
+  }, [open, isEdit, template?.id]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: recurringPaymentKeys.all });

@@ -97,9 +97,13 @@ export function ProformaDetailsForm({
     mode: "onBlur",
   });
 
+  // Re-seed the form only when the editing target changes (order.id).
+  // Using `order` itself in deps would re-reset on every background refetch
+  // from React Query, blowing away the user's in-progress edits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     form.reset(toFormValues(order, { remark: defaultRemark }));
-  }, [order, defaultRemark, form]);
+  }, [order.id]);
 
   const saveMut = useMutation({
     mutationFn: (values: ProformaFormOutput) =>

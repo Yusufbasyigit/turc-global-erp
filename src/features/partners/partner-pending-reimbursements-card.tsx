@@ -67,7 +67,13 @@ function CurrencyGroup({
   bucket: PartnerReimbursementResult["by_currency"][string];
 }) {
   const openClaims = bucket.claim_allocations.filter((a) => a.outstanding > 0.001);
-  const [expanded, setExpanded] = useState(openClaims.length <= 3);
+  const [userExpanded, setUserExpanded] = useState(false);
+  // Always show the list when there are 3 or fewer claims; otherwise honor
+  // the user's toggle. Tying this purely to the latest data (instead of the
+  // initial render) avoids the case where the bucket shrinks below the
+  // toggle threshold, the toggle button disappears, and the list stays
+  // hidden because `expanded` was captured as false on first mount.
+  const expanded = openClaims.length <= 3 || userExpanded;
 
   if (openClaims.length === 0) return null;
 
@@ -89,7 +95,7 @@ function CurrencyGroup({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setExpanded((v) => !v)}
+            onClick={() => setUserExpanded((v) => !v)}
             className="text-xs"
           >
             {expanded ? (

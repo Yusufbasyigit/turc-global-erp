@@ -140,7 +140,10 @@ export function AccountFormDialog({
     mode: "onBlur",
   });
 
-  // Reset on open / when existing loads.
+  // Reset on dialog open or when the editing target changes (existing.id).
+  // Tying this to `existing` itself (an object reference) would re-reset
+  // on every React Query refetch and overwrite the user's in-progress edits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return;
     setStepIndex(0);
@@ -159,7 +162,7 @@ export function AccountFormDialog({
     } else if (!isEdit) {
       form.reset(DEFAULT_VALUES);
     }
-  }, [open, isEdit, existing, form]);
+  }, [open, isEdit, existing?.id]);
 
   // Track the selected custody's location_type so the Zod metal-must-be-physical
   // refinement can run.

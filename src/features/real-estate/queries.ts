@@ -180,7 +180,7 @@ export function useOverdueInstallments(thresholdDays: number = 7) {
         if (inst.outstanding <= 0.001) continue;
         if (inst.due_date >= today) continue;
         const daysOverdue = daysBetween(inst.due_date, today);
-        if (daysOverdue < thresholdDays) continue;
+        if (daysOverdue <= thresholdDays) continue;
         out.push({
           deal_id: d.id,
           deal_label: d.label,

@@ -314,6 +314,8 @@ async function upsertAccrual(args: {
     const update: TransactionUpdate = {
       amount: args.amount,
       currency: args.currency,
+      description: args.description,
+      contact_id: args.contactId,
       edited_by: args.userId,
       edited_time: args.now,
     };

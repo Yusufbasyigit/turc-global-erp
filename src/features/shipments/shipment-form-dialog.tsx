@@ -137,11 +137,16 @@ export function ShipmentFormDialog({
     mode: "onBlur",
   });
 
+  // Reset on dialog open or when the editing target changes (shipment.id).
+  // Keying off the full `shipment` object would re-reset on every React
+  // Query refetch (which returns a fresh reference) and stomp the user's
+  // in-progress edits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return;
     if (isEdit && shipment) form.reset(fromShipment(shipment));
     else form.reset(defaultValues());
-  }, [open, isEdit, shipment, form]);
+  }, [open, isEdit, shipment?.id]);
 
   const customersQ = useQuery({
     queryKey: orderKeys.customers(),

@@ -50,6 +50,10 @@ export function PartnerFormDialog({
     mode: "onBlur",
   });
 
+  // Seed once per open/target — keying off `existing.id` (not the full
+  // object) prevents a background React Query refetch from blowing away
+  // an in-flight rename.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return;
     if (isEdit && existing) {
@@ -57,7 +61,7 @@ export function PartnerFormDialog({
     } else if (!isEdit) {
       form.reset(DEFAULT_VALUES);
     }
-  }, [open, isEdit, existing, form]);
+  }, [open, isEdit, existing?.id]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: partnerKeys.all });

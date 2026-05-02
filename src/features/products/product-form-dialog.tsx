@@ -286,6 +286,12 @@ export function ProductFormDialog({
     mode: "onBlur",
   });
 
+  // Seed the form when the dialog opens or the editing target changes.
+  // Tying this to `existing.id` (not the whole `existing` object) prevents
+  // background React Query refetches from blowing away the user's
+  // in-progress edits whenever the data is re-fetched and a new object
+  // reference is returned.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return;
     if (isEdit && existing) {
@@ -293,7 +299,7 @@ export function ProductFormDialog({
     } else if (!isEdit) {
       form.reset(DEFAULT_VALUES);
     }
-  }, [open, isEdit, existing, form]);
+  }, [open, isEdit, existing?.product_id]);
 
   const isLastStep = stepIndex === STEPS.length - 1;
   const currentStep = STEPS[stepIndex];
