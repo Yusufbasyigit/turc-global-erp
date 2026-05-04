@@ -63,6 +63,10 @@ import {
   type ProductFormOutput,
   type ProductFormValues,
 } from "./schema";
+import {
+  productMissingFields,
+  type MustHaveProductField,
+} from "./needs-details-badge";
 
 type StepId =
   | "basics"
@@ -423,6 +427,14 @@ export function ProductFormDialog({
     control: form.control,
     name: "cbm_per_unit",
   });
+  const watchWeightPerUnit = useWatch({
+    control: form.control,
+    name: "weight_kg_per_unit",
+  });
+  const watchSupplier = useWatch({
+    control: form.control,
+    name: "default_supplier",
+  });
 
   const derivedFromPackage = useMemo(
     () =>
@@ -443,6 +455,27 @@ export function ProductFormDialog({
       }),
     [watchPkgL, watchPkgW, watchPkgH],
   );
+
+  const initialMissing = useMemo(
+    () =>
+      isEdit && existing
+        ? productMissingFields(existing)
+        : new Set<MustHaveProductField>(),
+    [isEdit, existing],
+  );
+
+  const isMustFill = (name: MustHaveProductField): boolean => {
+    if (!initialMissing.has(name)) return false;
+    if (name === "cbm_per_unit") {
+      const v = watchCbmPerUnit;
+      const explicit = v !== null && v !== undefined && v !== "";
+      if (explicit) return false;
+      // CBM is also satisfied if we can derive it from the live packaging dims.
+      return derivedFromPackage === null;
+    }
+    const v = name === "default_supplier" ? watchSupplier : watchWeightPerUnit;
+    return v === null || v === undefined || v === "";
+  };
   const explicitCbm =
     watchCbmPerUnit === null ||
     watchCbmPerUnit === undefined ||
@@ -559,7 +592,10 @@ export function ProductFormDialog({
                   />
                 </Field>
 
-                <Field label="Supplier">
+                <Field
+                  label="Supplier"
+                  mustFill={isMustFill("default_supplier")}
+                >
                   <Controller
                     name="default_supplier"
                     control={form.control}
@@ -571,6 +607,10 @@ export function ProductFormDialog({
                         placeholder="Pick a supplier"
                         searchPlaceholder="Search suppliers…"
                         emptyMessage="No suppliers found. Add one from Contacts."
+                        className={cn(
+                          isMustFill("default_supplier") &&
+                            "border-destructive focus-visible:ring-destructive/30",
+                        )}
                       />
                     )}
                   />
@@ -789,6 +829,7 @@ export function ProductFormDialog({
                 <Field
                   label="CBM per unit (m³)"
                   error={form.formState.errors.cbm_per_unit?.message}
+                  mustFill={isMustFill("cbm_per_unit")}
                   hint={
                     derivedFromPackage !== null
                       ? `Derived from package dims: ${derivedFromPackage.toFixed(
@@ -806,18 +847,27 @@ export function ProductFormDialog({
                         ? derivedFromPackage.toFixed(4)
                         : "0.0000"
                     }
+                    className={cn(
+                      isMustFill("cbm_per_unit") &&
+                        "border-destructive focus-visible:ring-destructive/30",
+                    )}
                     {...form.register("cbm_per_unit")}
                   />
                 </Field>
                 <Field
                   label="Weight per unit (kg)"
                   error={form.formState.errors.weight_kg_per_unit?.message}
+                  mustFill={isMustFill("weight_kg_per_unit")}
                 >
                   <Input
                     type="number"
                     step="0.01"
                     min="0"
                     placeholder="0.00"
+                    className={cn(
+                      isMustFill("weight_kg_per_unit") &&
+                        "border-destructive focus-visible:ring-destructive/30",
+                    )}
                     {...form.register("weight_kg_per_unit")}
                   />
                 </Field>
@@ -1046,21 +1096,34 @@ function Field({
   label,
   error,
   hint,
+  mustFill,
   children,
   className,
 }: {
   label: string;
   error?: string;
   hint?: string;
+  mustFill?: boolean;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label
+        className={cn(
+          "text-xs",
+          mustFill && !error ? "text-destructive" : "text-muted-foreground",
+        )}
+      >
+        {label}
+      </Label>
       {children}
       {error ? (
         <p className="text-xs text-destructive">{error}</p>
+      ) : mustFill ? (
+        <p className="text-[11px] text-destructive">
+          Required to mark this product as ready.
+        </p>
       ) : hint ? (
         <p className="text-[11px] text-muted-foreground">{hint}</p>
       ) : null}
