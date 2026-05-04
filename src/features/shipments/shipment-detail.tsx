@@ -47,6 +47,7 @@ import { AdvanceShipmentDialog } from "./advance-shipment-dialog";
 import { ShipmentFormDialog } from "./shipment-form-dialog";
 import { ShipmentBillingCard } from "./shipment-billing-card";
 import { ShipmentCapacityCard } from "./shipment-capacity-card";
+import { ShipmentManifestTable } from "./shipment-manifest-table";
 import { GenerateStatementButton } from "./generate-statement-button";
 import {
   assignOrderToShipment,
@@ -432,6 +433,11 @@ export function ShipmentDetail({ id }: { id: string }) {
           </div>
         )}
       </section>
+
+      <ShipmentManifestTable
+        shipmentId={id}
+        invoiceCurrency={shipment.invoice_currency}
+      />
 
       {/* Freight + Documents */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

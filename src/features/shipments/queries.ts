@@ -11,6 +11,7 @@ import type {
 } from "@/lib/supabase/types";
 import {
   aggregateShipmentTotals,
+  lineTotals,
   type ShipmentTotals,
 } from "@/lib/shipments/dimensions";
 
@@ -30,6 +31,7 @@ export const shipmentKeys = {
   cogsTotal: (id: string) =>
     [...shipmentKeys.all, "cogsTotal", id] as const,
   totals: (id: string) => [...shipmentKeys.all, "totals", id] as const,
+  manifest: (id: string) => [...shipmentKeys.all, "manifest", id] as const,
 };
 
 export {
@@ -167,6 +169,183 @@ function normalizeOrdersForTotals(
         : d.product,
     })),
   }));
+}
+
+export type ShipmentManifestLineStatus = "new" | "rolled_over" | "cancelled";
+
+export type ShipmentManifestLine = {
+  rowKey: string;
+  orderId: string;
+  orderDate: string | null;
+  orderStatus: string;
+  lineNumber: number;
+  productName: string;
+  quantity: number;
+  unit: string | null;
+  unitsPerPackage: number | null;
+  packagingType: string | null;
+  weightKg: number;
+  cbm: number;
+  missingDimensions: boolean;
+  missingWeight: boolean;
+  unitPrice: number | null;
+  lineTotal: number | null;
+  status: ShipmentManifestLineStatus;
+  rolledOverToShipmentId: string | null;
+  rolledOverToName: string | null;
+};
+
+type ManifestProductDim = {
+  cbm_per_unit: number | null;
+  weight_kg_per_unit: number | null;
+  package_length_cm: number | null;
+  package_width_cm: number | null;
+  package_height_cm: number | null;
+  units_per_package: number | null;
+};
+
+type ManifestLineRow = {
+  id: string;
+  line_number: number;
+  quantity: number;
+  unit_sales_price: number | null;
+  product_name_snapshot: string;
+  unit_snapshot: string | null;
+  packaging_type: string | null;
+  units_per_package: number | null;
+  package_length_cm: number | null;
+  package_width_cm: number | null;
+  package_height_cm: number | null;
+  cbm_per_unit_snapshot: number | null;
+  weight_kg_per_unit_snapshot: number | null;
+  product: ManifestProductDim | ManifestProductDim[] | null;
+  orders:
+    | {
+        id: string;
+        status: string;
+        order_date: string | null;
+        billing_shipment_id: string | null;
+      }
+    | Array<{
+        id: string;
+        status: string;
+        order_date: string | null;
+        billing_shipment_id: string | null;
+      }>
+    | null;
+};
+
+export async function listShipmentManifestLines(
+  shipmentId: string,
+): Promise<ShipmentManifestLine[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("order_details")
+    .select(
+      `id, line_number, quantity, unit_sales_price, product_name_snapshot, unit_snapshot,
+       packaging_type, units_per_package, package_length_cm, package_width_cm, package_height_cm,
+       cbm_per_unit_snapshot, weight_kg_per_unit_snapshot,
+       product:products!order_details_product_id_fkey(
+         cbm_per_unit, weight_kg_per_unit,
+         package_length_cm, package_width_cm, package_height_cm, units_per_package
+       ),
+       orders!inner(id, status, order_date, billing_shipment_id)`,
+    )
+    .eq("orders.shipment_id", shipmentId);
+  if (error) throw error;
+
+  const rows = (data ?? []) as unknown as ManifestLineRow[];
+
+  // Sort by order_date, then order_id, then line_number — same ordering
+  // as the PDF statement so the on-screen manifest matches the document.
+  const sorted = rows.slice().sort((a, b) => {
+    const aOrder = Array.isArray(a.orders) ? a.orders[0] : a.orders;
+    const bOrder = Array.isArray(b.orders) ? b.orders[0] : b.orders;
+    const ad = aOrder?.order_date ?? "";
+    const bd = bOrder?.order_date ?? "";
+    if (ad !== bd) return ad < bd ? -1 : 1;
+    const aid = aOrder?.id ?? "";
+    const bid = bOrder?.id ?? "";
+    if (aid !== bid) return aid < bid ? -1 : 1;
+    return a.line_number - b.line_number;
+  });
+
+  const otherShipmentIds = Array.from(
+    new Set(
+      sorted
+        .map((r) => {
+          const o = Array.isArray(r.orders) ? r.orders[0] : r.orders;
+          return o?.billing_shipment_id ?? null;
+        })
+        .filter((v): v is string => Boolean(v) && v !== shipmentId),
+    ),
+  );
+
+  const otherShipmentNames = new Map<string, string>();
+  if (otherShipmentIds.length > 0) {
+    const { data: others, error: othersErr } = await supabase
+      .from("shipments")
+      .select("id, name")
+      .in("id", otherShipmentIds);
+    if (othersErr) throw othersErr;
+    for (const s of others ?? []) {
+      otherShipmentNames.set(s.id, s.name);
+    }
+  }
+
+  return sorted.map((r, i) => {
+    const order = Array.isArray(r.orders) ? r.orders[0] : r.orders;
+    const product = Array.isArray(r.product) ? (r.product[0] ?? null) : r.product;
+    const t = lineTotals({
+      cbm_per_unit_snapshot: r.cbm_per_unit_snapshot,
+      weight_kg_per_unit_snapshot: r.weight_kg_per_unit_snapshot,
+      package_length_cm: r.package_length_cm,
+      package_width_cm: r.package_width_cm,
+      package_height_cm: r.package_height_cm,
+      units_per_package: r.units_per_package,
+      quantity: r.quantity,
+      product,
+    });
+    const orderStatus = order?.status ?? "";
+    const billingShipmentId = order?.billing_shipment_id ?? null;
+    const status: ShipmentManifestLineStatus =
+      orderStatus === "cancelled"
+        ? "cancelled"
+        : billingShipmentId !== null && billingShipmentId !== shipmentId
+          ? "rolled_over"
+          : "new";
+    const qty = Number(r.quantity ?? 0);
+    const rawPrice =
+      r.unit_sales_price === null ? null : Number(r.unit_sales_price);
+    const visible = status === "new";
+    const unitPrice = visible ? rawPrice : null;
+    const lineTotal = visible && rawPrice !== null ? qty * rawPrice : null;
+    return {
+      rowKey: r.id,
+      orderId: order?.id ?? "",
+      orderDate: order?.order_date ?? null,
+      orderStatus,
+      lineNumber: i + 1,
+      productName: r.product_name_snapshot,
+      quantity: qty,
+      unit: r.unit_snapshot,
+      unitsPerPackage: r.units_per_package ?? product?.units_per_package ?? null,
+      packagingType: r.packaging_type,
+      weightKg: t.weightKg,
+      cbm: t.cbm,
+      missingDimensions: t.missingDimensions,
+      missingWeight: t.missingWeight,
+      unitPrice,
+      lineTotal,
+      status,
+      rolledOverToShipmentId:
+        status === "rolled_over" ? billingShipmentId : null,
+      rolledOverToName:
+        status === "rolled_over" && billingShipmentId
+          ? otherShipmentNames.get(billingShipmentId) ?? null
+          : null,
+    };
+  });
 }
 
 export async function getShipment(
