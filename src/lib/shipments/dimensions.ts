@@ -6,6 +6,11 @@
 //      with units_per_package — derived as
 //      (L × W × H) / 1_000_000 / units_per_package (m³ per unit)
 // (1) wins when both are present.
+//
+// The order_details snapshot acts as a per-line override. When a snapshot
+// field is null (line was created before the product had that value, or
+// never overridden), we fall back to the live product value if the line
+// carries a `product` ref. Explicit snapshot values always win.
 
 export type DimensionLine = {
   cbm_per_unit_snapshot?: number | string | null;
@@ -15,6 +20,14 @@ export type DimensionLine = {
   package_height_cm?: number | string | null;
   units_per_package?: number | string | null;
   quantity?: number | string | null;
+  product?: {
+    cbm_per_unit?: number | string | null;
+    weight_kg_per_unit?: number | string | null;
+    package_length_cm?: number | string | null;
+    package_width_cm?: number | string | null;
+    package_height_cm?: number | string | null;
+    units_per_package?: number | string | null;
+  } | null;
 };
 
 const CM3_PER_M3 = 1_000_000;
@@ -25,10 +38,24 @@ function toNum(v: number | string | null | undefined): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+function resolved(line: DimensionLine) {
+  const p = line.product;
+  return {
+    cbm_per_unit: line.cbm_per_unit_snapshot ?? p?.cbm_per_unit ?? null,
+    weight_kg_per_unit:
+      line.weight_kg_per_unit_snapshot ?? p?.weight_kg_per_unit ?? null,
+    package_length_cm: line.package_length_cm ?? p?.package_length_cm ?? null,
+    package_width_cm: line.package_width_cm ?? p?.package_width_cm ?? null,
+    package_height_cm: line.package_height_cm ?? p?.package_height_cm ?? null,
+    units_per_package: line.units_per_package ?? p?.units_per_package ?? null,
+  };
+}
+
 export function packageCbm(line: DimensionLine): number | null {
-  const l = toNum(line.package_length_cm);
-  const w = toNum(line.package_width_cm);
-  const h = toNum(line.package_height_cm);
+  const r = resolved(line);
+  const l = toNum(r.package_length_cm);
+  const w = toNum(r.package_width_cm);
+  const h = toNum(r.package_height_cm);
   if (l === null || w === null || h === null) return null;
   if (l === 0 || w === 0 || h === 0) return null;
   return (l * w * h) / CM3_PER_M3;
@@ -37,10 +64,11 @@ export function packageCbm(line: DimensionLine): number | null {
 // Per-unit CBM, deriving from package dims + units_per_package when the
 // explicit snapshot is missing.
 export function effectiveCbmPerUnit(line: DimensionLine): number | null {
-  const explicit = toNum(line.cbm_per_unit_snapshot);
+  const r = resolved(line);
+  const explicit = toNum(r.cbm_per_unit);
   if (explicit !== null && explicit > 0) return explicit;
   const pkg = packageCbm(line);
-  const upp = toNum(line.units_per_package);
+  const upp = toNum(r.units_per_package);
   if (pkg === null || upp === null || upp <= 0) return null;
   return pkg / upp;
 }
@@ -49,7 +77,8 @@ export function effectiveCbmPerUnit(line: DimensionLine): number | null {
 // the volume *would* be if cbm_per_unit is left blank).
 export function derivedCbmPerUnit(line: DimensionLine): number | null {
   const pkg = packageCbm(line);
-  const upp = toNum(line.units_per_package);
+  const r = resolved(line);
+  const upp = toNum(r.units_per_package);
   if (pkg === null || upp === null || upp <= 0) return null;
   return pkg / upp;
 }
@@ -65,7 +94,7 @@ export type LineTotals = {
 export function lineTotals(line: DimensionLine): LineTotals {
   const qty = toNum(line.quantity) ?? 0;
   const perUnitCbm = effectiveCbmPerUnit(line);
-  const perUnitKg = toNum(line.weight_kg_per_unit_snapshot);
+  const perUnitKg = toNum(resolved(line).weight_kg_per_unit);
   return {
     cbm: perUnitCbm !== null ? perUnitCbm * qty : 0,
     weightKg: perUnitKg !== null ? perUnitKg * qty : 0,

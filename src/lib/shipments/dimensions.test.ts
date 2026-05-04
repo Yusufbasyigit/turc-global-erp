@@ -297,5 +297,129 @@ section("23. containerFillSummary: fill ratios computed correctly");
   assertEq("wt fill 0.25", fill.fill.weightKg, 0.25);
 }
 
+section("24. product fallback: line snapshots null, product carries dims");
+{
+  const v = effectiveCbmPerUnit({
+    cbm_per_unit_snapshot: null,
+    package_length_cm: null,
+    package_width_cm: null,
+    package_height_cm: null,
+    units_per_package: null,
+    quantity: 100,
+    product: {
+      package_length_cm: 60,
+      package_width_cm: 40,
+      package_height_cm: 50,
+      units_per_package: 1000,
+    },
+  });
+  // (60×40×50) / 1_000_000 / 1000 = 0.00012 m³/unit
+  assertEq("derives from product", v, 0.00012);
+}
+
+section("25. product fallback: line snapshot wins over product (override semantic)");
+{
+  const v = effectiveCbmPerUnit({
+    cbm_per_unit_snapshot: 0.5, // explicit override
+    package_length_cm: null,
+    package_width_cm: null,
+    package_height_cm: null,
+    units_per_package: null,
+    product: {
+      cbm_per_unit: 0.001, // ignored
+      package_length_cm: 60,
+      package_width_cm: 40,
+      package_height_cm: 50,
+      units_per_package: 1000,
+    },
+  });
+  assertEq("snapshot wins", v, 0.5);
+}
+
+section("26. product fallback: package dims fall through per-field");
+{
+  // Line has length, product has width/height/upp — fields combine.
+  const v = effectiveCbmPerUnit({
+    package_length_cm: 100,
+    package_width_cm: null,
+    package_height_cm: null,
+    units_per_package: null,
+    product: {
+      package_width_cm: 50,
+      package_height_cm: 50,
+      units_per_package: 10,
+    },
+  });
+  // (100×50×50) / 1_000_000 / 10 = 0.025
+  assertEq("per-field merge", v, 0.025);
+}
+
+section("27. lineTotals: missingDimensions=false when product fills the gap");
+{
+  const t = lineTotals({
+    quantity: 100,
+    cbm_per_unit_snapshot: null,
+    package_length_cm: null,
+    package_width_cm: null,
+    package_height_cm: null,
+    units_per_package: null,
+    weight_kg_per_unit_snapshot: null,
+    product: {
+      cbm_per_unit: 0.01,
+      weight_kg_per_unit: 2,
+    },
+  });
+  assertEq("cbm via product", t.cbm, 1);
+  assertEq("weight via product", t.weightKg, 200);
+  assertEq("not missing dims", t.missingDimensions, false);
+  assertEq("not missing weight", t.missingWeight, false);
+}
+
+section("28. weight fallback: snapshot wins, falls back to product");
+{
+  const withSnap = lineTotals({
+    quantity: 10,
+    weight_kg_per_unit_snapshot: 7,
+    product: { weight_kg_per_unit: 99 },
+  });
+  assertEq("snapshot weight wins", withSnap.weightKg, 70);
+
+  const fallback = lineTotals({
+    quantity: 10,
+    weight_kg_per_unit_snapshot: null,
+    product: { weight_kg_per_unit: 3 },
+  });
+  assertEq("falls back to product weight", fallback.weightKg, 30);
+}
+
+section("29. aggregateShipmentTotals: product fallback works in aggregate");
+{
+  const result = aggregateShipmentTotals([
+    {
+      order_details: [
+        // Stale line (pre-dim product), product now has dims
+        {
+          quantity: 35000,
+          cbm_per_unit_snapshot: null,
+          package_length_cm: null,
+          package_width_cm: null,
+          package_height_cm: null,
+          units_per_package: null,
+          weight_kg_per_unit_snapshot: null,
+          product: {
+            package_length_cm: 60,
+            package_width_cm: 40,
+            package_height_cm: 50,
+            units_per_package: 1000,
+          },
+        },
+      ],
+    },
+  ]);
+  // 35000 × (60·40·50/1_000_000)/1000 = 35000 × 0.00012 = 4.2 m³
+  assertEq("aggregate cbm via product", result.cbm, 4.2);
+  assertEq("not flagged as missing", result.linesMissingDimensions, 0);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

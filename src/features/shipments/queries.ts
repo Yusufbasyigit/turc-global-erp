@@ -50,7 +50,15 @@ const SHIPMENT_LIST_SELECT = `
       package_width_cm,
       package_height_cm,
       units_per_package,
-      quantity
+      quantity,
+      product:products!order_details_product_id_fkey(
+        cbm_per_unit,
+        weight_kg_per_unit,
+        package_length_cm,
+        package_width_cm,
+        package_height_cm,
+        units_per_package
+      )
     )
   )
 `;
@@ -76,25 +84,10 @@ export async function listShipments(): Promise<ShipmentListRow[]> {
   if (error) throw error;
   return (data ?? []).map((row) => {
     const r = row as ShipmentWithRelations & {
-      orders:
-        | Array<{
-            id: string;
-            order_details:
-              | Array<{
-                  cbm_per_unit_snapshot: number | null;
-                  weight_kg_per_unit_snapshot: number | null;
-                  package_length_cm: number | null;
-                  package_width_cm: number | null;
-                  package_height_cm: number | null;
-                  units_per_package: number | null;
-                  quantity: number;
-                }>
-              | null;
-          }>
-        | null;
+      orders: OrderRowForTotals[] | null;
     };
     const orders = r.orders ?? [];
-    const totals = aggregateShipmentTotals(orders);
+    const totals = aggregateShipmentTotals(normalizeOrdersForTotals(orders));
     return {
       ...r,
       order_count: orders.length,
@@ -122,12 +115,58 @@ export async function getShipmentTotals(
         package_width_cm,
         package_height_cm,
         units_per_package,
-        quantity
+        quantity,
+        product:products!order_details_product_id_fkey(
+          cbm_per_unit,
+          weight_kg_per_unit,
+          package_length_cm,
+          package_width_cm,
+          package_height_cm,
+          units_per_package
+        )
       )`,
     )
     .eq("shipment_id", shipmentId);
   if (error) throw error;
-  return aggregateShipmentTotals(data ?? []);
+  return aggregateShipmentTotals(normalizeOrdersForTotals(data));
+}
+
+// PostgREST embeds the products FK as an array even though the relation
+// is to-one. Flatten product[] -> product so DimensionLine sees the shape
+// it expects.
+type ProductDim = {
+  cbm_per_unit: number | null;
+  weight_kg_per_unit: number | null;
+  package_length_cm: number | null;
+  package_width_cm: number | null;
+  package_height_cm: number | null;
+  units_per_package: number | null;
+};
+type OrderDetailsRow = {
+  cbm_per_unit_snapshot: number | null;
+  weight_kg_per_unit_snapshot: number | null;
+  package_length_cm: number | null;
+  package_width_cm: number | null;
+  package_height_cm: number | null;
+  units_per_package: number | null;
+  quantity: number;
+  product: ProductDim | ProductDim[] | null;
+};
+type OrderRowForTotals = {
+  order_details?: OrderDetailsRow[] | null;
+} | null;
+
+function normalizeOrdersForTotals(
+  orders: readonly OrderRowForTotals[] | null | undefined,
+) {
+  return (orders ?? []).map((o) => ({
+    order_details: (o?.order_details ?? []).map((d) => ({
+      ...d,
+      product: Array.isArray(d.product)
+        ? (d.product[0] ?? null)
+        : d.product,
+    })),
+  }));
 }
 
 export async function getShipment(
