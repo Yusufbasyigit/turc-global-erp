@@ -43,6 +43,7 @@ import {
   type PsdLegInput,
 } from "./mutations/psd-events";
 import { psdKeys, type PsdEventWithLegs } from "./queries/psd-summary";
+import { HistoryDrawer } from "@/features/audit-log/history-drawer";
 
 type LegDraft = {
   key: string;
@@ -345,7 +346,16 @@ export function PsdEventDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit PSD event" : "Log PSD"}</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle>{isEdit ? "Edit PSD event" : "Log PSD"}</DialogTitle>
+            {isEdit && event ? (
+              <HistoryDrawer
+                table="psd_events"
+                rowId={event.id}
+                variant="icon-sm"
+              />
+            ) : null}
+          </div>
           <DialogDescription>
             Money paid out from the company to the owners. Each event can span
             multiple currencies and source accounts.

@@ -49,6 +49,7 @@ import { ShipmentBillingCard } from "./shipment-billing-card";
 import { ShipmentCapacityCard } from "./shipment-capacity-card";
 import { ShipmentManifestTable } from "./shipment-manifest-table";
 import { GenerateStatementButton } from "./generate-statement-button";
+import { HistoryDrawer } from "@/features/audit-log/history-drawer";
 import {
   assignOrderToShipment,
   unassignOrderFromShipment,
@@ -279,6 +280,12 @@ export function ShipmentDetail({ id }: { id: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <HistoryDrawer
+            table="shipments"
+            rowId={shipment.id}
+            label={shipment.name}
+            variant="icon-sm"
+          />
           <GenerateStatementButton shipment={shipment} />
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
             <Pencil className="mr-1 size-3.5" /> Edit basics

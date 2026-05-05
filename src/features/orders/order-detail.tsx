@@ -67,6 +67,7 @@ import { CancelOrderDialog } from "./cancel-order-dialog";
 import { AssignShipmentDialog } from "./assign-shipment-dialog";
 import { PackagingOverrideDialog } from "./packaging-override-dialog";
 import { BatchAddLinesButton } from "./batch-add-lines-button";
+import { HistoryDrawer } from "@/features/audit-log/history-drawer";
 import { OrderLineRow } from "./order-line-row";
 import { ProformaDetailsSection } from "./proforma-details-section";
 import { GenerateProformaButton } from "./generate-proforma-button";
@@ -288,6 +289,12 @@ export function OrderDetail({ id }: { id: string }) {
             >
               {ORDER_STATUS_LABELS[status] ?? status}
             </Badge>
+            <HistoryDrawer
+              table="orders"
+              rowId={order.id}
+              label={`Order ${order.id.slice(0, 8)}`}
+              variant="icon-sm"
+            />
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             Customer:{" "}

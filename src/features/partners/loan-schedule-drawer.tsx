@@ -18,6 +18,7 @@ import {
   type LoanInstallmentStatus,
   type LoanState,
 } from "./queries/loans";
+import { HistoryDrawer } from "@/features/audit-log/history-drawer";
 
 function formatDate(d: string): string {
   const dt = new Date(d + "T00:00:00");
@@ -201,6 +202,11 @@ export function LoanScheduleDrawer({
                             >
                               {STATUS_LABEL[inst.status]}
                             </span>
+                            <HistoryDrawer
+                              table="loan_installments"
+                              rowId={inst.id}
+                              variant="icon-sm"
+                            />
                           </li>
                         ))}
                       </ul>

@@ -25,6 +25,7 @@ import {
 } from "./mutations";
 import { profitLossKeys, type ResolvedRate } from "./queries";
 import { periodLabel } from "./profit-loss-month-picker";
+import { HistoryDrawer } from "@/features/audit-log/history-drawer";
 
 export function RateBanner({
   period,
@@ -100,6 +101,12 @@ export function RateBanner({
       </div>
 
       <div className="flex items-center gap-2">
+        <HistoryDrawer
+          table="monthly_fx_overrides"
+          rowId={`${period}:TRY`}
+          label={`${periodLabel(period)} · TRY`}
+          variant="icon-sm"
+        />
         {isOverride ? (
           <Button
             variant="ghost"

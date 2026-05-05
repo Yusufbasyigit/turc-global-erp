@@ -64,6 +64,7 @@ import {
   TransactionFormDialog,
   type TransactionPrefill,
 } from "./transaction-form-dialog";
+import { HistoryDrawer } from "@/features/audit-log/history-drawer";
 import { RecordMovementDialog } from "@/features/treasury/record-movement-dialog";
 import type { MovementKind } from "@/lib/supabase/types";
 import { RecurringPaymentsButton } from "@/features/recurring-payments/recurring-payments-panel";
@@ -737,28 +738,37 @@ function RowAction({
     const target = disabledKindTarget(t);
     if (!target) {
       return (
-        <Button variant="ghost" size="sm" disabled aria-label="Read-only row">
-          <ExternalLink className="size-3.5" />
-        </Button>
+        <span className="inline-flex items-center gap-0.5">
+          <Button variant="ghost" size="sm" disabled aria-label="Read-only row">
+            <ExternalLink className="size-3.5" />
+          </Button>
+          <HistoryDrawer table="transactions" rowId={t.id} variant="icon-sm" />
+        </span>
       );
     }
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={target.href} aria-label={target.tooltip}>
-              <ExternalLink className="size-3.5" />
-            </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{target.tooltip}</TooltipContent>
-      </Tooltip>
+      <span className="inline-flex items-center gap-0.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={target.href} aria-label={target.tooltip}>
+                <ExternalLink className="size-3.5" />
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{target.tooltip}</TooltipContent>
+        </Tooltip>
+        <HistoryDrawer table="transactions" rowId={t.id} variant="icon-sm" />
+      </span>
     );
   }
   return (
-    <Button variant="ghost" size="sm" onClick={() => onEdit(t)}>
-      <Pencil className="size-3.5" />
-    </Button>
+    <span className="inline-flex items-center gap-0.5">
+      <Button variant="ghost" size="sm" onClick={() => onEdit(t)}>
+        <Pencil className="size-3.5" />
+      </Button>
+      <HistoryDrawer table="transactions" rowId={t.id} variant="icon-sm" />
+    </span>
   );
 }
 
