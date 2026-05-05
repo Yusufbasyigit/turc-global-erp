@@ -112,6 +112,39 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_log: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          id: number
+          new_data: Json | null
+          old_data: Json | null
+          row_id: string
+          table_name: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          new_data?: Json | null
+          old_data?: Json | null
+          row_id: string
+          table_name: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          new_data?: Json | null
+          old_data?: Json | null
+          row_id?: string
+          table_name?: string
+        }
+        Relationships: []
+      }
       contact_notes: {
         Row: {
           body: string
