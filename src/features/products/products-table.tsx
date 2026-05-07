@@ -34,12 +34,10 @@ function formatPrice(
   return currency ? `${currency} ${amt}` : amt;
 }
 
-function formatNumber(
-  value: number | null | undefined,
-  digits = 2,
-): string {
-  if (value === null || value === undefined) return "—";
-  return Number(value).toFixed(digits);
+function shortSupplier(name: string | null | undefined): string {
+  if (!name) return "—";
+  const words = name.trim().split(/\s+/);
+  return words.slice(0, 2).join(" ");
 }
 
 export function ProductsTable({
@@ -61,9 +59,8 @@ export function ProductsTable({
             <TableHead>Name</TableHead>
             <TableHead>Category</TableHead>
             <TableHead>Supplier</TableHead>
-            <TableHead>Unit</TableHead>
-            <TableHead className="text-right">CBM</TableHead>
-            <TableHead className="text-right">Weight (kg)</TableHead>
+            <TableHead>HS code</TableHead>
+            <TableHead className="text-right">Buying price</TableHead>
             <TableHead className="text-right">Sales price</TableHead>
             <TableHead className="text-right">KDV</TableHead>
             <TableHead>Status</TableHead>
@@ -107,17 +104,17 @@ export function ProductsTable({
                 <TableCell className="text-muted-foreground">
                   {p.product_categories?.name ?? "—"}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {p.supplier?.company_name ?? "—"}
+                <TableCell
+                  className="text-muted-foreground"
+                  title={p.supplier?.company_name ?? undefined}
+                >
+                  {shortSupplier(p.supplier?.company_name)}
                 </TableCell>
                 <TableCell className="text-muted-foreground font-mono text-xs">
-                  {p.unit ?? "—"}
+                  {p.hs_code ?? "—"}
                 </TableCell>
                 <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                  {formatNumber(p.cbm_per_unit, 4)}
-                </TableCell>
-                <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                  {formatNumber(p.weight_kg_per_unit, 2)}
+                  {formatPrice(p.est_purchase_price, p.est_currency)}
                 </TableCell>
                 <TableCell className="text-right font-mono text-xs">
                   {formatPrice(p.default_sales_price, p.sales_currency)}

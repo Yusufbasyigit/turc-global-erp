@@ -76,6 +76,15 @@ type CoinpaprikaTicker = {
   quotes?: { USD?: { price: number } };
 };
 
+type CoinpaprikaCoin = {
+  id: string;
+  name: string;
+  symbol: string;
+  rank?: number;
+  is_active?: boolean;
+  type?: string;
+};
+
 type GoldApiResponse = {
   symbol: string;
   price: number;
@@ -118,6 +127,94 @@ async function listNonFiatAssets(
     out.push({ asset_code: code, asset_type: type });
   }
   return out;
+}
+
+// Pull CoinPaprika's full coin catalogue and upsert it into ticker_registry.
+// Source of truth lives in src/features/treasury/refresh-engine.ts; keep
+// these two copies in sync (the Edge Function bundles only its own folder).
+export async function refreshTickerRegistry(
+  client: Client,
+): Promise<RefreshOutcome> {
+  const errors: string[] = [];
+  let inserted = 0;
+
+  try {
+    const res = await fetch(`${COINPAPRIKA_API}/coins`);
+    if (!res.ok) {
+      errors.push(`coinpaprika /coins: ${res.status} ${res.statusText}`);
+      return { inserted: 0, skipped: [], errors };
+    }
+    const all = (await res.json()) as CoinpaprikaCoin[];
+
+    const bestBySymbol = new Map<string, CoinpaprikaCoin>();
+    for (const c of all) {
+      if (c.is_active === false) continue;
+      if (!c.symbol || !c.id || !c.name) continue;
+      const symbol = c.symbol.trim().toUpperCase();
+      if (!symbol) continue;
+      const existing = bestBySymbol.get(symbol);
+      const incomingRank = c.rank && c.rank > 0 ? c.rank : Number.MAX_SAFE_INTEGER;
+      const existingRank =
+        existing?.rank && existing.rank > 0 ? existing.rank : Number.MAX_SAFE_INTEGER;
+      if (!existing || incomingRank < existingRank) {
+        bestBySymbol.set(symbol, c);
+      }
+    }
+
+    type Row = {
+      provider: string;
+      code: string;
+      slug: string;
+      name: string;
+      rank: number | null;
+      last_seen_at: string;
+    };
+    const rows: Row[] = [];
+    const now = new Date().toISOString();
+    for (const [symbol, c] of bestBySymbol) {
+      rows.push({
+        provider: "coinpaprika",
+        code: symbol,
+        slug: c.id,
+        name: c.name,
+        rank: c.rank && c.rank > 0 ? c.rank : null,
+        last_seen_at: now,
+      });
+    }
+
+    const CHUNK = 500;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const slice = rows.slice(i, i + CHUNK);
+      const { data, error } = await client
+        .from("ticker_registry")
+        .upsert(slice, { onConflict: "provider,code" })
+        .select("code");
+      if (error) {
+        errors.push(`upsert chunk ${i / CHUNK}: ${error.message}`);
+        continue;
+      }
+      inserted += (data ?? []).length;
+    }
+  } catch (e) {
+    errors.push(`coinpaprika /coins: ${(e as Error).message}`);
+  }
+
+  return { inserted, skipped: [], errors };
+}
+
+async function loadCoinpaprikaSlugMap(
+  client: Client,
+): Promise<Map<string, string>> {
+  const { data, error } = await client
+    .from("ticker_registry")
+    .select("code, slug")
+    .eq("provider", "coinpaprika");
+  if (error) throw error;
+  const map = new Map<string, string>();
+  for (const row of (data ?? []) as { code: string; slug: string }[]) {
+    map.set(row.code.toUpperCase(), row.slug);
+  }
+  return map;
 }
 
 export async function refreshFxSnapshots(
@@ -209,8 +306,13 @@ export async function refreshPriceSnapshots(
     .filter((a) => a.asset_type === "metal")
     .map((a) => a.asset_code);
 
+  const registrySlugs = cryptoCodes.length
+    ? await loadCoinpaprikaSlugMap(client).catch(() => new Map<string, string>())
+    : new Map<string, string>();
+
   for (const code of cryptoCodes) {
-    const id = COINPAPRIKA_IDS[code.toUpperCase()];
+    const upper = code.toUpperCase();
+    const id = registrySlugs.get(upper) ?? COINPAPRIKA_IDS[upper];
     if (!id) {
       skipped.push(code);
       continue;

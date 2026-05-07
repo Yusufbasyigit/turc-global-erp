@@ -36,6 +36,7 @@ function billing(
   return {
     id,
     transaction_date: date,
+    created_time: `${date}T00:00:00Z`,
     kind: "shipment_billing",
     currency,
     vat_amount: vat,
@@ -53,6 +54,7 @@ function expense(
   return {
     id,
     transaction_date: date,
+    created_time: `${date}T00:00:00Z`,
     kind: "expense",
     currency,
     vat_amount: vat,
@@ -70,6 +72,7 @@ function invoice(
   return {
     id,
     transaction_date: date,
+    created_time: `${date}T00:00:00Z`,
     kind: "supplier_invoice",
     currency,
     vat_amount: vat,
@@ -87,6 +90,7 @@ function taxPayment(
   return {
     id,
     transaction_date: date,
+    created_time: `${date}T00:00:00Z`,
     kind: "tax_payment",
     currency: "TRY",
     vat_amount: null,

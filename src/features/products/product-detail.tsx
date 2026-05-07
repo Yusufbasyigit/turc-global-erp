@@ -20,6 +20,7 @@ import { ActiveBadge } from "./active-badge";
 import { productKeys, getProduct, productImageUrl } from "./queries";
 import { ProductFormDialog } from "./product-form-dialog";
 import { DeleteProductDialog } from "./delete-product-dialog";
+import { ProductOrdersList } from "./product-orders-list";
 
 function formatPrice(
   amount: number | null | undefined,
@@ -164,6 +165,14 @@ export function ProductDetail({ productId }: { productId: string }) {
           />
           <DetailField label="Unit" value={product.unit} />
           <DetailField label="Barcode" value={product.barcode_value} />
+          <DetailField
+            label="HS code (GTİP)"
+            value={
+              product.hs_code ? (
+                <span className="font-mono">{product.hs_code}</span>
+              ) : null
+            }
+          />
         </CardContent>
       </Card>
 
@@ -276,8 +285,7 @@ export function ProductDetail({ productId }: { productId: string }) {
           <CardTitle className="text-base">Used in orders</CardTitle>
         </CardHeader>
         <CardContent className="pb-4">
-          {/* TODO: wire to orders module */}
-          <p className="text-sm text-muted-foreground">—</p>
+          <ProductOrdersList productId={productId} />
         </CardContent>
       </Card>
 

@@ -44,6 +44,7 @@ function toPayload(
     client_product_name: emptyToNull(values.client_product_name),
     client_description: emptyToNull(values.client_description),
     barcode_value: emptyToNull(values.barcode_value),
+    hs_code: emptyToNull(values.hs_code),
     category_id: values.category_id ?? null,
     default_supplier: values.default_supplier ?? null,
     unit: emptyToNull(values.unit),

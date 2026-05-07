@@ -28,6 +28,15 @@ export function ShipmentStatementPdfHeader({ data }: { data: StatementData }) {
           <Text style={statementStyles.muted}>
             {pdfText(`T ${data.company.phone} · E ${data.company.email}`)}
           </Text>
+          {data.company.taxId ? (
+            <Text style={statementStyles.muted}>
+              {pdfText(
+                data.company.taxOffice
+                  ? `VKN ${data.company.taxId} · ${data.company.taxOffice} V.D.`
+                  : `VKN ${data.company.taxId}`,
+              )}
+            </Text>
+          ) : null}
         </View>
         <View style={statementStyles.letterheadColRight}>
           <Text style={statementStyles.kicker}>N° ENVOI</Text>

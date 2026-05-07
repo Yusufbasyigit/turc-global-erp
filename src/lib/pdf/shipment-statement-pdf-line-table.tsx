@@ -63,7 +63,7 @@ function LineRow({
         </Text>
       </View>
       <View style={[statementStyles.tdMono, statementStyles.colLineTotal]}>
-        <Text style={{ fontFamily: "Courier-Bold" }}>
+        <Text style={statementStyles.monoBold}>
           {line.lineTotal === null
             ? "—"
             : formatProformaMoney(line.lineTotal, currency)}

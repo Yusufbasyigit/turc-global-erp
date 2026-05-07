@@ -7,6 +7,12 @@ import {
 import { pdfText } from "./text-encoding";
 import type { ProformaData, ProformaLine } from "./proforma-pdf-types";
 
+// Round to 2 decimals so a sum-of-displayed-rows matches the displayed grand
+// total. Without this, IEEE-754 drift can make them disagree by a cent.
+function roundCents(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function LineRow({
   line,
   zebra,
@@ -16,7 +22,7 @@ function LineRow({
   zebra: boolean;
   currency: string;
 }) {
-  const lineTotal = Number(line.quantity) * Number(line.unitPrice);
+  const lineTotal = roundCents(Number(line.quantity) * Number(line.unitPrice));
   return (
     <View
       style={[proformaStyles.tRow, zebra ? proformaStyles.tRowZebra : {}]}
@@ -61,7 +67,7 @@ function LineRow({
         <Text>{formatProformaMoney(line.unitPrice, currency)}</Text>
       </View>
       <View style={[proformaStyles.tdMono, proformaStyles.colTotal]}>
-        <Text style={{ fontFamily: "Courier-Bold" }}>
+        <Text style={proformaStyles.monoBold}>
           {formatProformaMoney(lineTotal, currency)}
         </Text>
       </View>
@@ -71,7 +77,7 @@ function LineRow({
 
 export function ProformaPdfLineTable({ data }: { data: ProformaData }) {
   const grandTotal = data.lines.reduce(
-    (sum, l) => sum + Number(l.quantity) * Number(l.unitPrice),
+    (sum, l) => sum + roundCents(Number(l.quantity) * Number(l.unitPrice)),
     0,
   );
 

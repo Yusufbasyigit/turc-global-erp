@@ -14,6 +14,11 @@ export type ProformaCompany = {
   addressLine2: string;
   phone: string;
   email: string;
+  // Turkish VKN + tax office. Optional today because the columns aren't
+  // yet on app_settings; once the schema migration lands, the assembler
+  // populates them and the header renders the fiscal block.
+  taxId: string | null;
+  taxOffice: string | null;
 };
 
 export type ProformaData = {
@@ -31,6 +36,7 @@ export type ProformaData = {
     address: string | null;
     city: string | null;
     countryName: string | null;
+    taxId: string | null;
   };
   lines: ProformaLine[];
   notes: {

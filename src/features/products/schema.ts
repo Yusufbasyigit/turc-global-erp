@@ -69,6 +69,7 @@ export const productFormSchema = z.object({
   client_product_name: trimmed().optional().default(""),
   client_description: z.string().optional().default(""),
   barcode_value: trimmed().optional().default(""),
+  hs_code: trimmed().optional().default(""),
   category_id: optionalId,
   default_supplier: optionalId,
   unit: trimmed().optional().default(""),
@@ -96,6 +97,7 @@ export type ProductFormValues = {
   client_product_name?: string;
   client_description?: string;
   barcode_value?: string;
+  hs_code?: string;
   category_id: string | null;
   default_supplier: string | null;
   unit?: string;

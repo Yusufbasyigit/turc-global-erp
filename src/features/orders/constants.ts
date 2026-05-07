@@ -51,3 +51,33 @@ export const ORDER_LIFECYCLE: readonly OrderStatus[] = [
   "shipped",
   "delivered",
 ] as const;
+
+// Days an order is allowed to sit in each non-terminal status before the UI
+// flags it as stuck. The export cycle naturally takes weeks, so the warn
+// threshold is "starting to look slow" and alarm is "needs attention now."
+// Tuned per status because the expected dwell time differs (an inquiry that
+// hasn't moved in 14 days is suspicious; in_production legitimately runs
+// 4-6 weeks).
+export const STUCK_THRESHOLDS_DAYS: Partial<
+  Record<OrderStatus, { warn: number; alarm: number }>
+> = {
+  inquiry: { warn: 14, alarm: 30 },
+  quoted: { warn: 30, alarm: 60 },
+  accepted: { warn: 30, alarm: 60 },
+  in_production: { warn: 45, alarm: 90 },
+  shipped: { warn: 30, alarm: 60 },
+};
+
+export type AgingBucket = "ok" | "warn" | "alarm" | "none";
+
+export function ageBucketForOrder(
+  status: OrderStatus,
+  days: number,
+): AgingBucket {
+  const t = STUCK_THRESHOLDS_DAYS[status];
+  if (!t) return "none";
+  if (!Number.isFinite(days) || days < 0) return "ok";
+  if (days >= t.alarm) return "alarm";
+  if (days >= t.warn) return "warn";
+  return "ok";
+}

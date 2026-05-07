@@ -31,6 +31,7 @@ import {
   logRefreshRun,
   refreshFxSnapshots,
   refreshPriceSnapshots,
+  refreshTickerRegistry,
 } from "./refresh-engine";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -113,6 +114,12 @@ export function TreasuryIndex() {
         throw new Error("No wallets yet. Create one in Accounts first.");
       }
       const client = createClient();
+      // Refresh the ticker registry first so price lookup can resolve any
+      // newly-added crypto ticker on this same run. Best-effort; failure
+      // here is non-fatal — fx + price still proceed.
+      await refreshTickerRegistry(client).catch((e: unknown) => {
+        console.error("ticker_registry refresh failed:", e);
+      });
       const [fxResult, priceResult] = await Promise.allSettled([
         refreshFxSnapshots(client),
         refreshPriceSnapshots(client),

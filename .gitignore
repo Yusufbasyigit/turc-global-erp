@@ -50,3 +50,6 @@ next-env.d.ts
 
 # stray local files
 CLAUDE.rtf
+
+# local PDF render output (dev visual regression)
+/samples/

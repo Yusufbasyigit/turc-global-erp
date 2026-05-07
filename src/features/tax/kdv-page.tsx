@@ -23,6 +23,7 @@ import {
 
 import { kdvKeys, listKdvWindow, type KdvRow } from "./queries";
 import { buildKdvCsv, downloadCsv } from "./csv";
+import { buildKdvCsvFilename } from "@/lib/pdf/document-filenames";
 
 const MONTHS_BACK = 12;
 
@@ -81,7 +82,7 @@ export function KdvPage() {
   const handleExport = (period: string) => {
     setExportOpen(false);
     const { csv } = buildKdvCsv(rows, period);
-    downloadCsv(`kdv-${period}.csv`, csv);
+    downloadCsv(buildKdvCsvFilename(period), csv);
   };
 
   return (

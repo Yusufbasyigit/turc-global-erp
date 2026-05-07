@@ -8,6 +8,7 @@ import {
   logRefreshRun,
   refreshFxSnapshots,
   refreshPriceSnapshots,
+  refreshTickerRegistry,
 } from "./refresh-engine.ts";
 
 Deno.serve(async () => {
@@ -24,6 +25,22 @@ Deno.serve(async () => {
     auth: { persistSession: false },
   });
 
+  // Refresh the ticker registry first so refreshPriceSnapshots can resolve
+  // any newly-added coin's slug via the registry on the very same run.
+  // Outcomes for fx/price still go to rate_refresh_runs; the registry result
+  // is logged to console (the table's schema doesn't carry a third slot,
+  // and a fresh migration just for an internal seed status would be churn).
+  const registry = await refreshTickerRegistry(client).catch((e: unknown) => ({
+    inserted: 0,
+    skipped: [],
+    errors: [String((e as Error)?.message ?? e)],
+  }));
+  if (registry.errors.length > 0) {
+    console.error("ticker_registry refresh errors:", registry.errors);
+  } else {
+    console.log(`ticker_registry: upserted ${registry.inserted} rows`);
+  }
+
   const [fx, price] = await Promise.allSettled([
     refreshFxSnapshots(client),
     refreshPriceSnapshots(client),
@@ -37,6 +54,7 @@ Deno.serve(async () => {
 
   return new Response(
     JSON.stringify({
+      registry,
       fx: fx.status === "fulfilled" ? fx.value : { error: String((fx.reason as Error)?.message ?? fx.reason) },
       price:
         price.status === "fulfilled"

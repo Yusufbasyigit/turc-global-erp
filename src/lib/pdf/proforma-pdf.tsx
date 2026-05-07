@@ -10,9 +10,12 @@ import type { ProformaData } from "./proforma-pdf-types";
 export function ProformaDocument({ data }: { data: ProformaData }) {
   return (
     <Document
-      title={`Proforma ${data.offerNumber}`}
-      author="Turc Global"
-      subject="Proforma Invoice"
+      title={`Proforma ${data.offerNumber} — ${data.customer.companyName}`}
+      author={data.company.name}
+      subject={`Proforma invoice ${data.offerNumber} for ${data.customer.companyName}`}
+      keywords={`proforma, invoice, ${data.offerNumber}, ${data.customer.companyName}`}
+      creator={`${data.company.name} ERP`}
+      producer={`${data.company.name} ERP`}
     >
       <Page size="A4" style={proformaStyles.page}>
         <ProformaPdfHeader data={data} />

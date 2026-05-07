@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { SHIPMENT_INVOICE_BUCKET } from "@/lib/constants";
+import { buildStatementPdfFilename } from "./document-filenames";
 import {
   setShipmentStatementPdfPath,
 } from "@/features/shipments/mutations";
@@ -21,6 +22,10 @@ import type {
   StatementLineStatus,
   StatementPayment,
 } from "./shipment-statement-pdf-types";
+
+function roundCents(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 type OrderLineRow = {
   line_number: number;
@@ -73,7 +78,7 @@ export async function assembleShipmentStatementData(
     supabase
       .from("shipments")
       .select(
-        "id, name, customer_id, invoice_currency, freight_cost, etd_date, eta_date, container_type, tracking_number, customer:contacts!shipments_customer_id_fkey(company_name, contact_person, address, city, countries(name_en))",
+        "id, name, customer_id, invoice_currency, freight_cost, etd_date, eta_date, container_type, tracking_number, customer:contacts!shipments_customer_id_fkey(company_name, contact_person, address, city, tax_id, countries(name_en))",
       )
       .eq("id", shipmentId)
       .single(),
@@ -97,6 +102,7 @@ export async function assembleShipmentStatementData(
       contact_person: string | null;
       address: string | null;
       city: string | null;
+      tax_id: string | null;
       countries: { name_en: string | null } | null;
     } | null;
   };
@@ -152,7 +158,7 @@ export async function assembleShipmentStatementData(
     const qty = Number(r.quantity ?? 0);
     const rawPrice =
       r.unit_sales_price === null ? null : Number(r.unit_sales_price);
-    const rawLineTotal = rawPrice === null ? null : qty * rawPrice;
+    const rawLineTotal = rawPrice === null ? null : roundCents(qty * rawPrice);
     // Rolled-over lines are billed on a different shipment; surface them
     // here for context but suppress unit price and total at the data
     // layer so every consumer (PDF, future API, exports) gets the same
@@ -176,15 +182,20 @@ export async function assembleShipmentStatementData(
     };
   });
 
-  const goodsSubtotal = lines.reduce((sum, l) => {
-    if (l.status !== "new" || l.lineTotal === null) return sum;
-    return sum + l.lineTotal;
-  }, 0);
-  const freightCost = Number(s.freight_cost ?? 0);
+  const goodsSubtotal = roundCents(
+    lines.reduce((sum, l) => {
+      if (l.status !== "new" || l.lineTotal === null) return sum;
+      return sum + l.lineTotal;
+    }, 0),
+  );
+  const freightCost = roundCents(Number(s.freight_cost ?? 0));
 
   const liveTotal = await computeShipmentTotal(shipmentId);
-  const grandTotal = goodsSubtotal + freightCost;
-  const isBillingStale = Number(billingTxn.amount) !== Number(liveTotal);
+  const grandTotal = roundCents(goodsSubtotal + freightCost);
+  // Tolerance covers IEEE-754 drift from JS-side line-total accumulation;
+  // we only want to flag a *user-visible* difference (>= 1 cent).
+  const isBillingStale =
+    Math.abs(Number(billingTxn.amount) - Number(liveTotal)) >= 0.005;
 
   const ledgerRows = await listTransactionsForContact(s.customer_id);
   const events: LedgerEvent[] = ledgerRows.map((row) => ({
@@ -278,6 +289,10 @@ export async function assembleShipmentStatementData(
       addressLine2: settings.address_line2,
       phone: settings.phone,
       email: settings.email,
+      taxId: (settings as unknown as { tax_id?: string | null }).tax_id ?? null,
+      taxOffice:
+        (settings as unknown as { tax_office?: string | null }).tax_office ??
+        null,
     },
     customer: {
       companyName: s.customer?.company_name ?? "—",
@@ -285,6 +300,7 @@ export async function assembleShipmentStatementData(
       address: s.customer?.address ?? null,
       city: s.customer?.city ?? null,
       countryName: s.customer?.countries?.name_en ?? null,
+      taxId: s.customer?.tax_id ?? null,
     },
     lines,
     goodsSubtotal,
@@ -323,7 +339,16 @@ export async function generateShipmentStatementPdf(
 
   await setShipmentStatementPdfPath({ shipment_id: shipmentId, path });
 
-  const signedUrl = await shipmentInvoiceSignedUrl(path, 3600);
+  const downloadFilename = buildStatementPdfFilename({
+    shipmentName: data.shipment.name,
+    customerName: data.customer.companyName,
+    etdDate: data.shipment.etdDate,
+  });
+  const signedUrl = await shipmentInvoiceSignedUrl(
+    path,
+    3600,
+    downloadFilename,
+  );
   if (!signedUrl) throw new Error("Failed to create signed URL.");
 
   return { path, signedUrl, shipmentName: data.shipment.name };

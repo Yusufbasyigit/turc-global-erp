@@ -7,6 +7,7 @@ import type {
   FxSnapshot,
   PriceSnapshot,
   RateRefreshRun,
+  TickerRegistry,
   TreasuryMovement,
 } from "@/lib/supabase/types";
 
@@ -18,6 +19,8 @@ export const treasuryKeys = {
   fx: () => [...treasuryKeys.all, "fx"] as const,
   prices: () => [...treasuryKeys.all, "prices"] as const,
   refreshRuns: () => [...treasuryKeys.all, "refreshRuns"] as const,
+  tickers: (provider: string) =>
+    [...treasuryKeys.all, "tickers", provider] as const,
 };
 
 const ACCOUNT_SELECT = `
@@ -112,6 +115,33 @@ export function useLastRefreshRun() {
   return useQuery({
     queryKey: treasuryKeys.refreshRuns(),
     queryFn: fetchLastRefreshRun,
+  });
+}
+
+export async function listTickers(
+  provider: "coinpaprika" | "tefas",
+): Promise<TickerRegistry[]> {
+  const supabase = createClient();
+  // Sort by rank (popular first), then code alphabetically. nulls last.
+  const { data, error } = await supabase
+    .from("ticker_registry")
+    .select("*")
+    .eq("provider", provider)
+    .order("rank", { ascending: true, nullsFirst: false })
+    .order("code", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export function useTickers(
+  provider: "coinpaprika" | "tefas",
+  options: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: treasuryKeys.tickers(provider),
+    queryFn: () => listTickers(provider),
+    staleTime: 24 * 60 * 60 * 1000, // ticker list refreshes daily; cache for a day
+    enabled: options.enabled ?? true,
   });
 }
 

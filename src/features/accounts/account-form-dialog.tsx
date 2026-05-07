@@ -41,6 +41,7 @@ import {
 import {
   listCustodyLocations,
   treasuryKeys,
+  useTickers,
 } from "@/features/treasury/queries";
 import { ASSET_TYPE_LABELS } from "@/features/treasury/constants";
 
@@ -171,6 +172,20 @@ export function AccountFormDialog({
     name: "custody_location_id",
   });
   const assetType = useWatch({ control: form.control, name: "asset_type" });
+
+  // CoinPaprika ticker registry — fetched lazily, only when asset_type is crypto.
+  // staleTime is 24h, so opening the form repeatedly hits the network once.
+  const cryptoTickersQ = useTickers("coinpaprika", {
+    enabled: assetType === "crypto",
+  });
+  const cryptoTickerItems = useMemo(
+    () =>
+      (cryptoTickersQ.data ?? []).map((t) => ({
+        value: t.code,
+        label: `${t.code} — ${t.name}`,
+      })),
+    [cryptoTickersQ.data],
+  );
 
   const selectedCustody = useMemo(
     () => allCustody.find((c) => c.id === custodyId) ?? null,
@@ -390,29 +405,62 @@ export function AccountFormDialog({
                   <Field
                     label="Asset code *"
                     error={form.formState.errors.asset_code?.message}
-                    hint={ASSET_CODE_HELPER[assetType ?? "fiat"]}
+                    hint={
+                      assetType === "crypto"
+                        ? cryptoTickersQ.isLoading
+                          ? "Loading tickers from CoinPaprika…"
+                          : cryptoTickerItems.length === 0
+                            ? "Registry empty — click Refresh on Treasury to seed it."
+                            : "Type to search any of CoinPaprika's listed cryptos."
+                        : ASSET_CODE_HELPER[assetType ?? "fiat"]
+                    }
                   >
                     <Controller
                       name="asset_code"
                       control={form.control}
-                      render={({ field }) => (
-                        <Input
-                          placeholder={
-                            assetType === "metal" ? "Altın" : "USD"
-                          }
-                          value={field.value ?? ""}
-                          onBlur={field.onBlur}
-                          onChange={(e) => {
-                            // Live-uppercase non-metal asset codes so the
-                            // value the user sees matches what we save.
-                            const next =
-                              assetType === "metal"
-                                ? e.target.value
-                                : e.target.value.toUpperCase();
-                            field.onChange(next);
-                          }}
-                        />
-                      )}
+                      render={({ field }) =>
+                        assetType === "crypto" ? (
+                          <Combobox
+                            items={cryptoTickerItems}
+                            value={field.value || null}
+                            onChange={(v) => field.onChange(v ?? "")}
+                            placeholder={
+                              cryptoTickersQ.isLoading
+                                ? "Loading…"
+                                : cryptoTickerItems.length === 0
+                                  ? "Registry empty — refresh Treasury first"
+                                  : "Pick a ticker"
+                            }
+                            searchPlaceholder="Search by code or name…"
+                            emptyMessage={
+                              cryptoTickersQ.isLoading
+                                ? "Loading…"
+                                : "No matching ticker."
+                            }
+                            disabled={
+                              cryptoTickersQ.isLoading ||
+                              cryptoTickerItems.length === 0
+                            }
+                          />
+                        ) : (
+                          <Input
+                            placeholder={
+                              assetType === "metal" ? "Altın" : "USD"
+                            }
+                            value={field.value ?? ""}
+                            onBlur={field.onBlur}
+                            onChange={(e) => {
+                              // Live-uppercase non-metal asset codes so the
+                              // value the user sees matches what we save.
+                              const next =
+                                assetType === "metal"
+                                  ? e.target.value
+                                  : e.target.value.toUpperCase();
+                              field.onChange(next);
+                            }}
+                          />
+                        )
+                      }
                     />
                   </Field>
                 </div>

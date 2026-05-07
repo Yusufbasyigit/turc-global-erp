@@ -18,7 +18,7 @@ export function istanbulYYYYMMDD(date: Date = new Date()): string {
 export function formatOfferDateShort(iso: string | null | undefined): string {
   if (!iso) return "—";
   const [y, m, d] = iso.slice(0, 10).split("-");
-  if (!y || !m || !d) return iso;
+  if (!y || !m || !d) return "—";
   return `${d}.${m}.${y}`;
 }
 

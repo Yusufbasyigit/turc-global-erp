@@ -36,6 +36,7 @@ export const COINPAPRIKA_IDS: Record<string, string> = {
   SHIB: "shib-shiba-inu",
   XLM: "xlm-stellar",
   NEAR: "near-near-protocol",
+  PAXG: "paxg-pax-gold",
 };
 
 export const METAL_ASSET_MAP: Record<

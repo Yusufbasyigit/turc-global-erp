@@ -11,8 +11,9 @@ import {
 // period and its filing is transactions.kdv_period on tax_payment rows.
 //
 // Tie-break for multiple tax_payment rows matching the same period: newest
-// transaction_date DESC, then highest id DESC. Documented here so the UI
-// can trust which one is the "the linked payment".
+// transaction_date DESC, then most recent created_time DESC. (The id is a
+// UUID so it can't be used as a recency proxy; created_time is monotonic
+// and serves the same purpose without the lexicographic-UUID pitfall.)
 
 export const VAT_COLLECTED_KINDS: readonly TransactionKind[] = [
   "shipment_billing",
@@ -27,6 +28,10 @@ export const VAT_PAID_KINDS: readonly TransactionKind[] = [
 export type KdvInputTxn = {
   id: string;
   transaction_date: string;
+  // Used only as a tie-breaker when two tax_payment rows fall on the same
+  // transaction_date — kept optional so scripts and tests that don't care
+  // about ordering can omit it.
+  created_time?: string | null;
   kind: TransactionKind;
   currency: string;
   vat_amount: number | null;
@@ -108,6 +113,12 @@ export function summarizeKdv(
       if (a.transaction_date !== b2.transaction_date) {
         return a.transaction_date < b2.transaction_date ? 1 : -1;
       }
+      const ac = a.created_time ?? "";
+      const bc = b2.created_time ?? "";
+      if (ac !== bc) return ac < bc ? 1 : -1;
+      // Final stable fallback if created_time is also tied — string compare
+      // on id keeps sort deterministic without claiming UUID ordering means
+      // anything semantically.
       return a.id < b2.id ? 1 : -1;
     });
     const linked = payments[0] ?? null;

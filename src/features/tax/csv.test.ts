@@ -25,6 +25,7 @@ function row(opts: Partial<KdvRow>): KdvRow {
   return {
     id: "t1",
     transaction_date: "2026-04-15",
+    created_time: "2026-04-15T00:00:00Z",
     kind: "expense",
     currency: "TRY",
     vat_amount: 100,
@@ -40,16 +41,16 @@ function row(opts: Partial<KdvRow>): KdvRow {
   };
 }
 
-section("1. rowsToCsv: basic header + body separated by CRLF");
+section("1. rowsToCsv: basic header + body separated by CRLF (semicolon-separated)");
 {
   const csv = rowsToCsv(["a", "b"], [["1", "2"]]);
-  assertEq("expected", csv, "a,b\r\n1,2");
+  assertEq("expected", csv, "a;b\r\n1;2");
 }
 
-section("2. rowsToCsv: cells with commas are quoted");
+section("2. rowsToCsv: cells with the separator are quoted");
 {
-  const csv = rowsToCsv(["a", "b"], [["x,y", "z"]]);
-  assertEq("comma quoted", csv, 'a,b\r\n"x,y",z');
+  const csv = rowsToCsv(["a", "b"], [["x;y", "z"]]);
+  assertEq("semicolon quoted", csv, 'a;b\r\n"x;y";z');
 }
 
 section("3. rowsToCsv: cells with double-quotes get internal doubling");
@@ -67,7 +68,7 @@ section("4. rowsToCsv: cells with newlines are quoted");
 section("5. rowsToCsv: null/undefined cells become empty string");
 {
   const csv = rowsToCsv(["a", "b"], [[null, "x"]]);
-  assertEq("null", csv, "a,b\r\n,x");
+  assertEq("null", csv, "a;b\r\n;x");
 }
 
 section("6. rowsToCsv: number cells stringified");
@@ -76,7 +77,13 @@ section("6. rowsToCsv: number cells stringified");
   assertEq("number", csv, "a\r\n42");
 }
 
-section("7. buildKdvCsv: filters to period and VAT-bearing kinds only");
+section("7. rowsToCsv: cells with comma do NOT need quoting under semicolon separator");
+{
+  const csv = rowsToCsv(["a"], [["1,234"]]);
+  assertEq("no quote", csv, "a\r\n1,234");
+}
+
+section("8. buildKdvCsv: filters to period and VAT-bearing kinds only");
 {
   const rows: KdvRow[] = [
     row({ id: "1", transaction_date: "2026-04-15", kind: "expense" }),
@@ -87,12 +94,9 @@ section("7. buildKdvCsv: filters to period and VAT-bearing kinds only");
   const result = buildKdvCsv(rows, "2026-04");
   assertEq("tryCount", result.tryCount, 2);
   assertEq("skippedCount", result.skippedCount, 0);
-  // CSV body must have header + note + 2 data rows.
-  const lines = result.csv.split("\r\n");
-  assertEq("4 lines", lines.length, 4);
 }
 
-section("8. buildKdvCsv: non-TRY rows in window go to skipped, not exported");
+section("9. buildKdvCsv: non-TRY rows in window go to skipped, not exported");
 {
   const rows: KdvRow[] = [
     row({ id: "1", transaction_date: "2026-04-15", kind: "expense", currency: "TRY" }),
@@ -104,7 +108,7 @@ section("8. buildKdvCsv: non-TRY rows in window go to skipped, not exported");
   assertEq("skippedCount", result.skippedCount, 2);
 }
 
-section("9. buildKdvCsv: vat_amount=null is treated as skipped");
+section("10. buildKdvCsv: vat_amount=null is treated as skipped");
 {
   const rows: KdvRow[] = [
     row({ id: "1", transaction_date: "2026-04-15", kind: "expense", vat_amount: null }),
@@ -115,15 +119,14 @@ section("9. buildKdvCsv: vat_amount=null is treated as skipped");
   assertEq("skippedCount", result.skippedCount, 1);
 }
 
-section("10. buildKdvCsv: header line is the period note");
+section("11. buildKdvCsv: header block contains period + skipped count");
 {
   const result = buildKdvCsv([], "2026-04");
-  const firstLine = result.csv.split("\r\n")[1] ?? "";
-  assertEq("note has period", firstLine.includes("KDV 2026-04"), true);
-  assertEq("note has zero skipped", firstLine.includes("0"), true);
+  assertEq("contains period", result.csv.includes("2026-04"), true);
+  assertEq("contains skipped label", result.csv.includes("Atlanan satır"), true);
 }
 
-section("11. buildKdvCsv: contact_name preferred over partner_name");
+section("12. buildKdvCsv: contact_name preferred over partner_name");
 {
   const rows: KdvRow[] = [
     row({
@@ -139,7 +142,7 @@ section("11. buildKdvCsv: contact_name preferred over partner_name");
   assertEq("partner skipped", csv.includes("John"), false);
 }
 
-section("12. buildKdvCsv: falls back to partner_name when contact_name null");
+section("13. buildKdvCsv: falls back to partner_name when contact_name null");
 {
   const rows: KdvRow[] = [
     row({
@@ -154,13 +157,49 @@ section("12. buildKdvCsv: falls back to partner_name when contact_name null");
   assertEq("partner used", csv.includes("Yusuf"), true);
 }
 
-section("13. buildKdvCsv: empty input -> note + header only, zero rows");
+section("14. buildKdvCsv: empty input -> metadata + headers + footers, no body rows");
 {
   const result = buildKdvCsv([], "2026-04");
   assertEq("tryCount 0", result.tryCount, 0);
   assertEq("skippedCount 0", result.skippedCount, 0);
-  // Lines: header + note + 0 body rows = 2.
-  assertEq("2 lines", result.csv.split("\r\n").length, 2);
+  assertEq("contains net total label", result.csv.includes("Net ödenecek"), true);
+}
+
+section("15. buildKdvCsv: kind labels are translated for human readability");
+{
+  const rows: KdvRow[] = [
+    row({ id: "1", transaction_date: "2026-04-15", kind: "shipment_billing" }),
+  ];
+  const csv = buildKdvCsv(rows, "2026-04").csv;
+  assertEq("kind translated", csv.includes("Sevkiyat faturalama"), true);
+  assertEq("raw slug not present", /;shipment_billing;/.test(csv), false);
+}
+
+section("16. buildKdvCsv: collected vs paid totals add up");
+{
+  const rows: KdvRow[] = [
+    // Collected: 1000 net, 200 vat
+    row({
+      id: "1",
+      transaction_date: "2026-04-01",
+      kind: "shipment_billing",
+      net_amount: 1000,
+      vat_amount: 200,
+    }),
+    // Paid: 500 net, 100 vat
+    row({
+      id: "2",
+      transaction_date: "2026-04-02",
+      kind: "supplier_invoice",
+      net_amount: 500,
+      vat_amount: 100,
+    }),
+  ];
+  const csv = buildKdvCsv(rows, "2026-04").csv;
+  // collectedVat - paidVat = 100
+  const lines = csv.split("\r\n");
+  const netLine = lines.find((l) => l.startsWith("Net ödenecek")) ?? "";
+  assertEq("net = 100", netLine.includes(";100"), true);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

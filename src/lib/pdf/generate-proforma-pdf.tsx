@@ -6,6 +6,7 @@ import {
 import { setOrderProposalPdfPath } from "@/features/orders/mutations";
 import { orderAttachmentSignedUrl } from "@/features/orders/queries";
 import { getAppSettings } from "@/features/settings/queries";
+import { buildProformaPdfFilename } from "./document-filenames";
 import type { ProformaData, ProformaLine } from "./proforma-pdf-types";
 
 async function signProductPhotoUrl(path: string | null): Promise<string | null> {
@@ -27,7 +28,7 @@ export async function assembleProformaData(
       supabase
         .from("orders")
         .select(
-          "*, customer:contacts!orders_customer_id_fkey(id, company_name, contact_person, address, city, countries(code, name_en))",
+          "*, customer:contacts!orders_customer_id_fkey(id, company_name, contact_person, address, city, tax_id, countries(code, name_en))",
         )
         .eq("id", orderId)
         .single(),
@@ -56,6 +57,7 @@ export async function assembleProformaData(
       contact_person: string | null;
       address: string | null;
       city: string | null;
+      tax_id: string | null;
       countries: { name_en: string | null } | null;
     } | null;
     order_currency: string;
@@ -101,6 +103,12 @@ export async function assembleProformaData(
       addressLine2: settings.address_line2,
       phone: settings.phone,
       email: settings.email,
+      // Tax fields not yet on app_settings — the migration that adds
+      // tax_id / tax_office will populate these.
+      taxId: (settings as unknown as { tax_id?: string | null }).tax_id ?? null,
+      taxOffice:
+        (settings as unknown as { tax_office?: string | null }).tax_office ??
+        null,
     },
     customer: {
       companyName: o.customer?.company_name ?? "—",
@@ -108,6 +116,7 @@ export async function assembleProformaData(
       address: o.customer?.address ?? null,
       city: o.customer?.city ?? null,
       countryName: o.customer?.countries?.name_en ?? null,
+      taxId: o.customer?.tax_id ?? null,
     },
     lines: proformaLines,
     notes: {
@@ -149,7 +158,16 @@ export async function generateProformaPdf(
 
   await setOrderProposalPdfPath({ order_id: orderId, path });
 
-  const signedUrl = await orderAttachmentSignedUrl(path, 3600);
+  const downloadFilename = buildProformaPdfFilename({
+    offerNumber: data.offerNumber,
+    customerName: data.customer.companyName,
+    offerDate: data.offerDate,
+  });
+  const signedUrl = await orderAttachmentSignedUrl(
+    path,
+    3600,
+    downloadFilename,
+  );
   if (!signedUrl) throw new Error("Failed to create signed URL.");
 
   return { path, signedUrl, offerNumber: data.offerNumber };

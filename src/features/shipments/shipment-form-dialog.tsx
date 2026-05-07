@@ -326,16 +326,27 @@ export function ShipmentFormDialog({
             </Field>
 
             <Field label="Container type">
-              <Input
-                list="container-types"
-                placeholder="e.g. 40HC"
-                {...form.register("container_type")}
+              <Controller
+                name="container_type"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value ?? ""}
+                    onValueChange={(v) => field.onChange(v === "" ? null : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONTAINER_TYPE_OPTIONS.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               />
-              <datalist id="container-types">
-                {CONTAINER_TYPE_OPTIONS.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
             </Field>
 
             <Field label="Vessel name">

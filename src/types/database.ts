@@ -1222,6 +1222,33 @@ export type Database = {
           },
         ]
       }
+      ticker_registry: {
+        Row: {
+          code: string
+          last_seen_at: string
+          name: string
+          provider: string
+          rank: number | null
+          slug: string
+        }
+        Insert: {
+          code: string
+          last_seen_at?: string
+          name: string
+          provider: string
+          rank?: number | null
+          slug: string
+        }
+        Update: {
+          code?: string
+          last_seen_at?: string
+          name?: string
+          provider?: string
+          rank?: number | null
+          slug?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number

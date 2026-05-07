@@ -92,6 +92,7 @@ const STEPS: {
       "default_supplier",
       "unit",
       "barcode_value",
+      "hs_code",
       "is_active",
     ],
   },
@@ -162,6 +163,7 @@ const DEFAULT_VALUES: ProductFormValues = {
   client_product_name: "",
   client_description: "",
   barcode_value: "",
+  hs_code: "",
   category_id: null,
   default_supplier: null,
   unit: "",
@@ -193,6 +195,7 @@ function toFormValues(p: ProductWithRelations): ProductFormValues {
     client_product_name: p.client_product_name ?? "",
     client_description: p.client_description ?? "",
     barcode_value: p.barcode_value ?? "",
+    hs_code: p.hs_code ?? "",
     category_id: p.category_id,
     default_supplier: p.default_supplier,
     unit: p.unit ?? "",
@@ -435,6 +438,10 @@ export function ProductFormDialog({
     control: form.control,
     name: "default_supplier",
   });
+  const watchHsCode = useWatch({
+    control: form.control,
+    name: "hs_code",
+  });
 
   const derivedFromPackage = useMemo(
     () =>
@@ -473,7 +480,12 @@ export function ProductFormDialog({
       // CBM is also satisfied if we can derive it from the live packaging dims.
       return derivedFromPackage === null;
     }
-    const v = name === "default_supplier" ? watchSupplier : watchWeightPerUnit;
+    const v =
+      name === "default_supplier"
+        ? watchSupplier
+        : name === "hs_code"
+          ? watchHsCode
+          : watchWeightPerUnit;
     return v === null || v === undefined || v === "";
   };
   const explicitCbm =
@@ -627,6 +639,22 @@ export function ProductFormDialog({
                   <Input
                     placeholder="EAN-13, UPC, etc."
                     {...form.register("barcode_value")}
+                  />
+                </Field>
+
+                <Field
+                  label="HS code (GTİP)"
+                  mustFill={isMustFill("hs_code")}
+                  hint="Customs tariff number used on the export proforma and ETGB declaration."
+                >
+                  <Input
+                    placeholder="e.g. 5701.10.00.00.00"
+                    className={cn(
+                      "font-mono",
+                      isMustFill("hs_code") &&
+                        "border-destructive focus-visible:ring-destructive/30",
+                    )}
+                    {...form.register("hs_code")}
                   />
                 </Field>
 

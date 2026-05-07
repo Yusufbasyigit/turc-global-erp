@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { istanbulYYYYMMDD } from "./istanbul-date";
 
-// TODO(Wave 3d+): allow manual override of offer_number via admin affordance.
+// Manual override is exposed in the proforma details form as the "Override"
+// button, which calls `setOrderOfferNumber` directly.
 export async function generateOfferNumber(
   supabase: SupabaseClient,
   offerDateIso: string,

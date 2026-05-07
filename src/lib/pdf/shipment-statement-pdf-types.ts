@@ -24,6 +24,8 @@ export type StatementCompany = {
   addressLine2: string;
   phone: string;
   email: string;
+  taxId: string | null;
+  taxOffice: string | null;
 };
 
 export type StatementData = {
@@ -43,6 +45,7 @@ export type StatementData = {
     address: string | null;
     city: string | null;
     countryName: string | null;
+    taxId: string | null;
   };
   lines: StatementLine[];
   goodsSubtotal: number;

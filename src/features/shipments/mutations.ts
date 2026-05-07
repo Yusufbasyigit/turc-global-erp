@@ -89,6 +89,11 @@ export async function updateShipment(input: {
     await assertShipmentEditable(input.id);
   }
 
+  // When freight is changing, snapshot the pre-update freight + audit
+  // columns so we can roll the row back if the post-update accrual refresh
+  // throws and leaves the row out of sync with the ledger.
+  const previous = freightChanging ? await loadShipment(input.id) : null;
+
   let nextPath: string | null | undefined = undefined;
   if (input.removeDocument && input.previousDocumentPath) {
     await deleteShipmentDocument(input.previousDocumentPath).catch(() => {});
@@ -123,7 +128,26 @@ export async function updateShipment(input: {
   if (error) throw error;
 
   if (freightChanging) {
-    await refreshShipmentAccruals(input.id);
+    try {
+      await refreshShipmentAccruals(input.id);
+    } catch (refreshErr) {
+      if (previous) {
+        try {
+          await supabase
+            .from("shipments")
+            .update({
+              freight_cost: previous.freight_cost,
+              freight_currency: previous.freight_currency,
+              edited_by: previous.edited_by,
+              edited_time: previous.edited_time,
+            })
+            .eq("id", input.id);
+        } catch {
+          /* best-effort rollback */
+        }
+      }
+      throw refreshErr;
+    }
   }
 
   return data;
@@ -258,10 +282,21 @@ export async function advanceShipmentStatus(input: {
       now,
     });
 
-    const updatedOrders: Array<{ id: string; previousStatus: string }> = [];
+    const updatedOrders: Array<{
+      id: string;
+      previousStatus: string;
+      previousEditedBy: string | null;
+      previousEditedTime: string | null;
+    }> = [];
     try {
       const results = await Promise.allSettled(
         toCascade.map(async (o) => {
+          const { data: prev, error: loadErr } = await supabase
+            .from("orders")
+            .select("edited_by, edited_time")
+            .eq("id", o.id)
+            .single();
+          if (loadErr) throw loadErr;
           const { error } = await supabase
             .from("orders")
             .update({
@@ -271,7 +306,12 @@ export async function advanceShipmentStatus(input: {
             })
             .eq("id", o.id);
           if (error) throw error;
-          return { id: o.id, previousStatus: o.status };
+          return {
+            id: o.id,
+            previousStatus: o.status,
+            previousEditedBy: prev?.edited_by ?? null,
+            previousEditedTime: prev?.edited_time ?? null,
+          };
         }),
       );
       for (const r of results) {
@@ -295,7 +335,11 @@ export async function advanceShipmentStatus(input: {
         updatedOrders.map((u) =>
           supabase
             .from("orders")
-            .update({ status: u.previousStatus })
+            .update({
+              status: u.previousStatus,
+              edited_by: u.previousEditedBy,
+              edited_time: u.previousEditedTime,
+            })
             .eq("id", u.id),
         ),
       );
@@ -312,8 +356,12 @@ export async function advanceShipmentStatus(input: {
           rollbackErr instanceof Error
             ? rollbackErr.message
             : "accrual rollback failed";
+        const orderTail =
+          failedRollbacks.length > 0
+            ? ` Additionally, ${failedRollbacks.length} order(s) could not be rolled back: ${failedRollbacks.join(", ")}.`
+            : "";
         throw new Error(
-          `${baseMessage}. Additionally, the billing accrual rollback failed (${rollbackMessage}); please review shipment ${current.id.slice(0, 8)} accrual transactions manually.`,
+          `${baseMessage}. Additionally, the billing accrual rollback failed (${rollbackMessage}); please review shipment ${current.id.slice(0, 8)} accrual transactions manually.${orderTail}`,
         );
       }
       if (failedRollbacks.length > 0) {

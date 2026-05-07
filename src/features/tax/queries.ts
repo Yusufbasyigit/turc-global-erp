@@ -47,7 +47,7 @@ export async function listKdvWindow(
   const { data, error } = await supabase
     .from("transactions")
     .select(
-      `id, transaction_date, kind, currency, amount, vat_amount, vat_rate, net_amount, kdv_period, reference_number, description,
+      `id, transaction_date, created_time, kind, currency, amount, vat_amount, vat_rate, net_amount, kdv_period, reference_number, description,
        contacts:contacts!transactions_contact_id_fkey(company_name),
        partners:partners!transactions_partner_id_fkey(name)`,
     )
@@ -61,6 +61,7 @@ export async function listKdvWindow(
   type Raw = {
     id: string;
     transaction_date: string;
+    created_time: string | null;
     kind: string;
     currency: string;
     amount: number | string;
@@ -77,6 +78,7 @@ export async function listKdvWindow(
   return (data as unknown as Raw[]).map((r) => ({
     id: r.id,
     transaction_date: r.transaction_date,
+    created_time: r.created_time,
     kind: r.kind as TransactionKind,
     currency: r.currency,
     amount: Number(r.amount),

@@ -11,9 +11,12 @@ import type { StatementData } from "./shipment-statement-pdf-types";
 export function ShipmentStatementDocument({ data }: { data: StatementData }) {
   return (
     <Document
-      title={`Statement ${data.shipment.name}`}
-      author="Turc Global"
-      subject="Shipment Statement"
+      title={`Statement ${data.shipment.name} — ${data.customer.companyName}`}
+      author={data.company.name}
+      subject={`Shipment statement ${data.shipment.name} for ${data.customer.companyName}`}
+      keywords={`statement, shipment, ${data.shipment.name}, ${data.customer.companyName}`}
+      creator={`${data.company.name} ERP`}
+      producer={`${data.company.name} ERP`}
     >
       <Page size="A4" style={statementStyles.page}>
         <ShipmentStatementPdfHeader data={data} />

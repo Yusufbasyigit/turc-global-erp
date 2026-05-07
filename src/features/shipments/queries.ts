@@ -67,7 +67,8 @@ const SHIPMENT_LIST_SELECT = `
 
 const SHIPMENT_DETAIL_SELECT = `
   *,
-  customer:contacts!shipments_customer_id_fkey(id, company_name, balance_currency)
+  customer:contacts!shipments_customer_id_fkey(id, company_name, balance_currency),
+  orders:orders!orders_shipment_id_fkey(id)
 `;
 
 export type ShipmentListRow = ShipmentWithRelations & {
@@ -359,7 +360,13 @@ export async function getShipment(
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  return { ...(data as unknown as ShipmentWithRelations), order_count: 0 };
+  const r = data as ShipmentWithRelations & {
+    orders: Array<{ id: string }> | null;
+  };
+  return {
+    ...r,
+    order_count: (r.orders ?? []).length,
+  };
 }
 
 export type ShipmentCascadePreviewOrder = {
@@ -441,11 +448,13 @@ export async function shipmentDocumentSignedUrl(
 export async function shipmentInvoiceSignedUrl(
   path: string,
   expiresInSec = 3600,
+  downloadFilename?: string,
 ): Promise<string | null> {
   const supabase = createClient();
+  const options = downloadFilename ? { download: downloadFilename } : undefined;
   const { data, error } = await supabase.storage
     .from(SHIPMENT_INVOICE_BUCKET)
-    .createSignedUrl(path, expiresInSec);
+    .createSignedUrl(path, expiresInSec, options);
   if (error) return null;
   return data?.signedUrl ?? null;
 }

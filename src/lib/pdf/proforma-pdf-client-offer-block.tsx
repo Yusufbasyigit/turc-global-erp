@@ -49,6 +49,7 @@ export function ProformaPdfClientOfferBlock({ data }: { data: ProformaData }) {
           <Kv k="Contact" v={customer.contactPerson} />
           <Kv k="Adresse" v={addressLine || null} />
           <Kv k="Pays" v={customer.countryName} />
+          <Kv k="N° fiscal" v={customer.taxId} mono />
         </View>
       </View>
       <View style={proformaStyles.twoColDivider} />

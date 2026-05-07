@@ -27,7 +27,10 @@ import {
   DEFAULT_PAYMENT_TERMS,
 } from "@/lib/proforma/payment-terms-options";
 import { todayIsoDate, addDaysIso } from "@/lib/proforma/istanbul-date";
-import { updateOrderProformaMetadata } from "./mutations";
+import {
+  setOrderOfferNumber,
+  updateOrderProformaMetadata,
+} from "./mutations";
 import { orderKeys } from "./queries";
 
 type OrderProformaFields = {
@@ -116,17 +119,82 @@ export function ProformaDetailsForm({
     onError: (e: Error) => toast.error(e.message ?? "Failed to save"),
   });
 
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideValue, setOverrideValue] = useState("");
+
+  const overrideMut = useMutation({
+    mutationFn: (next: string | null) =>
+      setOrderOfferNumber({ order_id: order.id, offer_number: next }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: orderKeys.detail(order.id) });
+      qc.invalidateQueries({ queryKey: orderKeys.list() });
+      toast.success("Offer number updated");
+      setOverrideOpen(false);
+      setOverrideValue("");
+    },
+    onError: (e: Error) =>
+      toast.error(e.message ?? "Failed to update offer number"),
+  });
+
   const onSubmit = form.handleSubmit((values) => saveMut.mutate(values));
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Field label="Offer number">
-          <Input
-            value={order.offer_number ?? "— (auto on save)"}
-            readOnly
-            className="bg-muted/40 font-mono text-xs"
-          />
+          {overrideOpen ? (
+            <div className="flex items-center gap-2">
+              <Input
+                autoFocus
+                value={overrideValue}
+                onChange={(e) => setOverrideValue(e.target.value)}
+                placeholder={order.offer_number ?? "TG-YYYYMMDD-NNN"}
+                className="font-mono text-xs"
+                disabled={overrideMut.isPending}
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={() =>
+                  overrideMut.mutate(overrideValue.trim() || null)
+                }
+                disabled={overrideMut.isPending}
+              >
+                {overrideMut.isPending ? "…" : "Save"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setOverrideOpen(false);
+                  setOverrideValue("");
+                }}
+                disabled={overrideMut.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Input
+                value={order.offer_number ?? "— (auto on save)"}
+                readOnly
+                className="bg-muted/40 font-mono text-xs"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setOverrideValue(order.offer_number ?? "");
+                  setOverrideOpen(true);
+                }}
+              >
+                Override
+              </Button>
+            </div>
+          )}
         </Field>
         <Field label="Offer date *">
           <Input type="date" {...form.register("offer_date")} />

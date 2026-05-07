@@ -28,6 +28,15 @@ export function ProformaPdfHeader({ data }: { data: ProformaData }) {
           <Text style={proformaStyles.muted}>
             {pdfText(`T ${data.company.phone} · E ${data.company.email}`)}
           </Text>
+          {data.company.taxId ? (
+            <Text style={proformaStyles.muted}>
+              {pdfText(
+                data.company.taxOffice
+                  ? `VKN ${data.company.taxId} · ${data.company.taxOffice} V.D.`
+                  : `VKN ${data.company.taxId}`,
+              )}
+            </Text>
+          ) : null}
         </View>
         <View style={proformaStyles.letterheadColRight}>
           <Text style={proformaStyles.kicker}>N° OFFRE</Text>

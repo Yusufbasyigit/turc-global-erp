@@ -31,6 +31,9 @@ export type FxSnapshotInsert = PublicTable<"fx_snapshots">["Insert"];
 export type PriceSnapshot = PublicTable<"price_snapshots">["Row"];
 export type PriceSnapshotInsert = PublicTable<"price_snapshots">["Insert"];
 
+export type TickerRegistry = PublicTable<"ticker_registry">["Row"];
+export type TickerRegistryInsert = PublicTable<"ticker_registry">["Insert"];
+
 export type RefreshOutcomeJson = {
   inserted: number;
   skipped: string[];

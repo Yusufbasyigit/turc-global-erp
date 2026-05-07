@@ -69,10 +69,13 @@ section("5. formatOfferDateShort: null/undefined/empty → em dash");
   assertEq("empty", formatOfferDateShort(""), "—");
 }
 
-section("6. formatOfferDateShort: malformed input returned as-is");
+section("6. formatOfferDateShort: malformed input falls back to em dash");
 {
-  // slice(0,10) on 'no' → 'no', split('-') → ['no'] → !y → return iso.
-  assertEq("garbage", formatOfferDateShort("no"), "no");
+  // Anything that doesn't yield three '-'-separated parts is treated as
+  // missing rather than echoed back verbatim, so the UI never renders a
+  // half-formatted date string.
+  assertEq("garbage", formatOfferDateShort("no"), "—");
+  assertEq("partial ISO", formatOfferDateShort("2026-04"), "—");
 }
 
 section("7. todayIsoDate: returns en-CA YYYY-MM-DD shape");

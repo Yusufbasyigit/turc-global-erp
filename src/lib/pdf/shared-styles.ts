@@ -1,8 +1,9 @@
-import { Font, StyleSheet } from "@react-pdf/renderer";
-
-// Disable word hyphenation: react-pdf otherwise breaks long words mid-glyph
-// (e.g. "han-dle"), which is unacceptable in editorial copy.
-Font.registerHyphenationCallback((word) => [word]);
+import { StyleSheet } from "@react-pdf/renderer";
+import {
+  BUILTIN_FONT_FAMILY,
+  PDF_FONT_FAMILY,
+  pdfFontsAvailable,
+} from "./font-registration";
 
 // Editorial Defter palette — warm-paper aesthetic, hex equivalents of the
 // app's OKLCH tokens in src/app/globals.css. Restrained ink + brick accent;
@@ -26,16 +27,21 @@ export const ACCENT_RED = BRICK;
 export const BORDER = HAIRLINE;
 export const CREDIT_GREEN = POSITIVE;
 
-// Built-in PDF fonts (no registration needed). Helvetica is the document
-// workhorse, Times-Roman handles editorial display headings, Courier carries
-// tabular figures so columns line up.
-const SANS = "Helvetica";
-const SANS_BOLD = "Helvetica-Bold";
-const SANS_OBLIQUE = "Helvetica-Oblique";
-const SERIF = "Times-Roman";
-const SERIF_ITALIC = "Times-Italic";
-const MONO = "Courier";
-const MONO_BOLD = "Courier-Bold";
+// Document fonts. When `public/fonts/*` is populated (see
+// font-registration.ts) we use Inter / Instrument Serif / JetBrains Mono —
+// all OFL-licensed and shipping with full Latin Extended-A coverage so
+// Turkish names render correctly. When the files aren't present we fall
+// back to Helvetica / Times / Courier (built-in WinAnsi) plus the
+// transliteration in text-encoding.ts. This means the build is always
+// green and the PDFs are always readable.
+const FAMILY = pdfFontsAvailable ? PDF_FONT_FAMILY : BUILTIN_FONT_FAMILY;
+const SANS = FAMILY.SANS;
+const SANS_BOLD = FAMILY.SANS_BOLD;
+const SANS_OBLIQUE = FAMILY.SANS_OBLIQUE;
+const SERIF = FAMILY.SERIF;
+const SERIF_ITALIC = FAMILY.SERIF_ITALIC;
+const MONO = FAMILY.MONO;
+const MONO_BOLD = FAMILY.MONO_BOLD;
 
 export const sharedStyles = StyleSheet.create({
   page: {
