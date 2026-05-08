@@ -171,5 +171,24 @@ section("7. Payout in currency with no claims");
   assertEq("USD has no claims", us.claim_allocations.length, 0);
 }
 
+section("8. Sub-cent rounding residue marks claim fully settled");
+{
+  // Three payouts that don't divide evenly into the claim. Without an EPS
+  // tolerance, the residual ~1e-15 leaves is_fully_settled=false and the
+  // claim re-surfaces in the pending list with $0.00 outstanding.
+  const r = allocatePartnerReimbursements(
+    [claim("c1", "2026-01-01", 100, "USD")],
+    [
+      payout("p1", "2026-01-02", 33.33, "USD"),
+      payout("p2", "2026-01-03", 33.33, "USD"),
+      payout("p3", "2026-01-04", 33.34, "USD"),
+    ],
+  );
+  const bucket = r.by_currency["USD"];
+  assertEq("fully settled", bucket.claim_allocations[0].is_fully_settled, true);
+  assertEq("outstanding zeroed", bucket.claim_allocations[0].outstanding, 0);
+  assertEq("no unallocated payout", bucket.unallocated_payout, 0);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

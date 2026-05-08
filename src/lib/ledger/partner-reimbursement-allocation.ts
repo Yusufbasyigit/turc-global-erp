@@ -35,6 +35,13 @@ export type PartnerReimbursementResult = {
   by_currency: Record<string, CurrencyBucket>;
 };
 
+// Matches the EPS in `installment-allocation.ts`. Without it, a series of
+// payouts whose decimals don't divide evenly into the claim (e.g. three 33.33
+// payouts against 100) leaves a sub-cent residue that keeps `is_fully_settled`
+// false and re-surfaces the claim in the pending list even though the operator
+// sees `$0.00 outstanding`.
+const EPS = 0.001;
+
 function sortByDateThenId<
   T extends { date: string; id: string },
 >(rows: T[]): T[] {
@@ -77,18 +84,21 @@ export function allocatePartnerReimbursements(
     for (const payout of cPayouts) {
       let remaining = payout.amount;
       for (const slot of allocations) {
-        if (remaining <= 0) break;
-        if (slot.outstanding <= 0) continue;
+        if (remaining <= EPS) break;
+        if (slot.outstanding <= EPS) continue;
         const take = Math.min(slot.outstanding, remaining);
         slot.amount_settled += take;
         slot.outstanding -= take;
         remaining -= take;
       }
-      if (remaining > 0) unallocated += remaining;
+      if (remaining > EPS) unallocated += remaining;
     }
 
     for (const slot of allocations) {
-      slot.is_fully_settled = slot.outstanding <= 0;
+      if (slot.outstanding <= EPS) {
+        slot.outstanding = 0;
+        slot.is_fully_settled = true;
+      }
     }
 
     const total_claimed = cClaims.reduce((s, c) => s + c.amount, 0);

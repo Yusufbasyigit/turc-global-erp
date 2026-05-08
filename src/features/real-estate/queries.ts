@@ -21,7 +21,7 @@ export type DealReceiptRow = Pick<
 >;
 
 export type DealWithRelations = RealEstateDeal & {
-  contact: Pick<Contact, "id" | "company_name" | "type"> | null;
+  contact: Pick<Contact, "id" | "company_name"> | null;
   installments: RealEstateInstallment[];
   receipts: DealReceiptRow[];
 };
@@ -41,7 +41,7 @@ export const realEstateKeys = {
 const DEAL_SELECT = `
   id, label, sub_type, contact_id, currency, start_date, notes,
   deleted_at, created_time, edited_time, created_by, edited_by,
-  contact:contacts!real_estate_deals_contact_id_fkey(id, company_name, type),
+  contact:contacts!real_estate_deals_contact_id_fkey(id, company_name),
   installments:real_estate_installments(*)
 `;
 

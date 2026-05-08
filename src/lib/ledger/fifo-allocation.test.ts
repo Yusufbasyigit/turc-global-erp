@@ -244,5 +244,27 @@ section("10. Prepayment exceeding billing -> remainder stays as credit");
   assertEq("net_balance shows we owe them", r.net_balance, -400);
 }
 
+section("11. Refund reopens the oldest paid billing first (FIFO unwind)");
+{
+  // Two billings, both fully paid by a single payment that overflows. A
+  // refund larger than any unallocated credit must walk billings oldest-
+  // first to mirror forward FIFO direction. Pre-fix the loop ran backward
+  // and reopened b2 (newest) first, contradicting the allocator's name.
+  const r = allocateFifo(
+    [
+      billing("b1", "2026-01-01", 600, "EUR", "s1"),
+      billing("b2", "2026-02-01", 400, "EUR", "s2"),
+      payment("p1", "2026-02-15", 1000, "EUR"),
+      refund("r1", "2026-03-01", 300, "EUR"),
+    ],
+    "EUR",
+  );
+  assertEq("b1 reopened by 300", r.shipment_allocations[0].paid_amount, 300);
+  assertEq("b1 outstanding 300", r.shipment_allocations[0].outstanding_amount, 300);
+  assertEq("b2 untouched (still paid)", r.shipment_allocations[1].paid_amount, 400);
+  assertEq("b2 outstanding 0", r.shipment_allocations[1].outstanding_amount, 0);
+  assertEq("net_balance reflects refund", r.net_balance, 300);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

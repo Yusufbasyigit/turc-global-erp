@@ -158,8 +158,13 @@ export function allocateFifo(
         remaining -= take;
         if (head.remaining <= 0) pendingCredits.shift();
       }
-      for (let i = billings.length - 1; i >= 0 && remaining > 0; i--) {
-        const slot = billings[i];
+      // Reverse paid billings oldest-first to match the forward FIFO direction:
+      // payments fund the oldest billing first, so a refund reopens the oldest
+      // paid billing first. This keeps outstanding-by-billing a stable function
+      // of (sum of bills, sum of payments minus refunds) regardless of when
+      // the refund landed.
+      for (const slot of billings) {
+        if (remaining <= 0) break;
         if (slot.paid <= 0) continue;
         const take = Math.min(slot.paid, remaining);
         slot.paid -= take;
