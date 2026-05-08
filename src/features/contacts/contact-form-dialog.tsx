@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useForm,
   Controller,
@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Combobox } from "@/components/ui/combobox";
+import { Combobox, type ComboboxItem } from "@/components/ui/combobox";
 import { cn } from "@/lib/utils";
 import {
   BALANCE_CURRENCIES,
@@ -43,7 +43,13 @@ import {
   type ContactFormOutput,
   type ContactFormValues,
 } from "./schema";
-import { countryKeys, listCountries, contactKeys, getContact } from "./queries";
+import {
+  countryKeys,
+  listCountries,
+  contactKeys,
+  getContact,
+  listContacts,
+} from "./queries";
 import { createContact, updateContact } from "./mutations";
 
 const DEFAULT_VALUES: ContactFormValues = {
@@ -137,6 +143,13 @@ export function ContactFormDialog({
     staleTime: Infinity,
   });
 
+  const { data: allContacts = [] } = useQuery({
+    queryKey: contactKeys.list(),
+    queryFn: listContacts,
+    staleTime: 60_000,
+    enabled: open,
+  });
+
   const { data: existing } = useQuery({
     queryKey: contactId ? contactKeys.detail(contactId) : ["contact", "new"],
     queryFn: () => getContact(contactId!),
@@ -219,6 +232,35 @@ export function ContactFormDialog({
     name: "country_code",
   });
   const isTurkey = watchCountry === "TR";
+
+  const watchCity = useWatch({ control: form.control, name: "city" });
+
+  const cityOptions: ComboboxItem[] = useMemo(() => {
+    const sorted = [...allContacts].sort((a, b) => {
+      const ta = a.edited_time ?? a.created_time ?? "";
+      const tb = b.edited_time ?? b.created_time ?? "";
+      return tb.localeCompare(ta);
+    });
+
+    const seen = new Map<string, string>();
+    for (const c of sorted) {
+      const raw = c.city?.trim();
+      if (!raw) continue;
+      if (watchCountry && c.country_code !== watchCountry) continue;
+      const key = raw.toLowerCase();
+      if (!seen.has(key)) seen.set(key, raw);
+    }
+
+    const current = watchCity?.trim();
+    if (current) {
+      const key = current.toLowerCase();
+      if (!seen.has(key)) seen.set(key, current);
+    }
+
+    return Array.from(seen.values())
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({ value: name, label: name }));
+  }, [allContacts, watchCountry, watchCity]);
 
   const isLastStep = stepIndex === STEPS.length - 1;
   const currentStep = STEPS[stepIndex];
@@ -358,7 +400,22 @@ export function ContactFormDialog({
                 </Field>
 
                 <Field label="City">
-                  <Input placeholder="Istanbul" {...form.register("city")} />
+                  <Controller
+                    name="city"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Combobox
+                        items={cityOptions}
+                        value={field.value || null}
+                        onChange={(v) => field.onChange(v ?? "")}
+                        onCreate={(label) => field.onChange(label)}
+                        createLabel={(q) => `Use "${q}"`}
+                        placeholder="Istanbul"
+                        searchPlaceholder="Search city…"
+                        emptyMessage="No matching city — type to add one."
+                      />
+                    )}
+                  />
                 </Field>
 
                 <Field
