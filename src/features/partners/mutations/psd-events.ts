@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { AUTH_DISABLED } from "@/lib/auth-mode";
 import {
+  assertAccountCurrencyMatches,
   spawnMovementFromTransaction,
 } from "@/features/transactions/mutations";
 import type {
@@ -211,6 +212,11 @@ export async function updatePsdEvent(
   const finalLegs: Transaction[] = [];
   for (const leg of input.legs) {
     if (leg.id) {
+      // Same currency guard spawnMovementFromTransaction enforces on create —
+      // without it, switching a leg's source to a different-currency account
+      // would silently dump foreign-currency quantity into the new account's
+      // balance.
+      await assertAccountCurrencyMatches(leg.from_account_id, leg.currency);
       // Update existing leg: amount/currency/from_account/date may change.
       const legUpdate: TransactionUpdate = {
         transaction_date: input.event_date,

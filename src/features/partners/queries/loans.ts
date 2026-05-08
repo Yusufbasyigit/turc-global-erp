@@ -235,8 +235,12 @@ export function computeLoanState(
         const outstanding = Math.max(0, Number(inst.amount) - paid);
         let status: LoanInstallmentStatus;
         if (outstanding <= 0.0001) status = "paid";
-        else if (paid > 0.0001) status = "partial";
+        // Past-due wins over partial-paid so a part-paid loan installment
+        // that is also late renders "overdue" (red) rather than "partial"
+        // (amber). Without this, the partner-loan drawer would hide the
+        // delinquency signal whenever any payment had been made.
         else if (inst.due_date < today) status = "overdue";
+        else if (paid > 0.0001) status = "partial";
         else status = "open";
         states.push({ ...inst, paid_amount: paid, outstanding, status });
       }

@@ -116,7 +116,8 @@ section("5. FIFO across multiple installments");
   assertEq("i2 paid", r.installments[1].paid, 500);
   assertEq("i2 paid status", r.installments[1].status, "paid");
   assertEq("i3 partial paid", r.installments[2].paid, 200);
-  assertEq("i3 status", r.installments[2].status, "partial");
+  // i3 is past due (2026-03-01 < TODAY 2026-04-30) so overdue beats partial.
+  assertEq("i3 status", r.installments[2].status, "overdue");
 }
 
 section("6. Overpayment -> unallocated_payment carries the residue");
@@ -228,7 +229,8 @@ section("12. Receipts continue across multiple installments in one go");
   );
   assertEq("i1 fully paid", r.installments[0].status, "paid");
   assertEq("i2 fully paid", r.installments[1].status, "paid");
-  assertEq("i3 partial", r.installments[2].status, "partial");
+  // i3 is past due (2026-03-01 < TODAY 2026-04-30) so overdue beats partial.
+  assertEq("i3 overdue (was partial pre-fix)", r.installments[2].status, "overdue");
   assertEq("i3 paid", r.installments[2].paid, 50);
 }
 
@@ -242,6 +244,18 @@ section("13. Zero-amount receipt -> noop, no division by anything");
   assertEq("paid", r.installments[0].paid, 0);
   assertEq("outstanding", r.installments[0].outstanding, 100);
   assertEq("status", r.installments[0].status, "due");
+}
+
+section("14b. Partially-paid installment past due -> overdue beats partial");
+{
+  const r = allocateRealEstateInstallments(
+    [inst("i1", "2026-01-01", 1000, 1)],
+    [receipt("r1", "2026-01-15", 300)],
+    TODAY,
+  );
+  assertEq("paid", r.installments[0].paid, 300);
+  assertEq("outstanding", r.installments[0].outstanding, 700);
+  assertEq("status", r.installments[0].status, "overdue");
 }
 
 section("14. Zero-amount installment -> immediately paid");

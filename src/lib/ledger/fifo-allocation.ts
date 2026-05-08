@@ -106,7 +106,11 @@ export function allocateFifo(
   const skipped: SkippedEvent[] = [];
   const billings: BillingSlot[] = [];
   const paymentAllocations: PaymentAllocationDetail[] = [];
-  let unallocatedCredit = 0;
+  // Prepayments (and any unallocated remainder of a partial payment) sit here
+  // until a billing slot opens. We keep the originating event so the
+  // retroactive-match loop below can still emit payment_allocations entries
+  // linking the prepayment to the billing it funded.
+  const pendingCredits: Array<{ event: LedgerEvent; remaining: number }> = [];
 
   for (const event of sorted) {
     const amt = effectiveAmount(event, displayCurrency);
@@ -141,15 +145,19 @@ export function allocateFifo(
           allocated_amount: take,
         });
       }
-      if (remaining > 0) unallocatedCredit += remaining;
+      if (remaining > 0) pendingCredits.push({ event, remaining });
       continue;
     }
 
     if (event.kind === "client_refund") {
       let remaining = amt;
-      const fromCredit = Math.min(remaining, unallocatedCredit);
-      unallocatedCredit -= fromCredit;
-      remaining -= fromCredit;
+      while (remaining > 0 && pendingCredits.length > 0) {
+        const head = pendingCredits[0];
+        const take = Math.min(head.remaining, remaining);
+        head.remaining -= take;
+        remaining -= take;
+        if (head.remaining <= 0) pendingCredits.shift();
+      }
       for (let i = billings.length - 1; i >= 0 && remaining > 0; i--) {
         const slot = billings[i];
         if (slot.paid <= 0) continue;
@@ -163,18 +171,32 @@ export function allocateFifo(
   }
 
   // Retroactive match: a payment that arrived before any billing is parked in
-  // unallocatedCredit. Once a later billing slot opens with paid < billed, drain
-  // the credit into that slot FIFO. Without this, prepayments stay "unallocated"
-  // forever and shipment_allocations[].paid_amount stays 0 even after the
-  // billing arrives.
+  // pendingCredits. Once a later billing slot opens with paid < billed, drain
+  // the oldest credits into that slot FIFO and emit payment_allocations so
+  // downstream views (per-shipment "Payments applied" table, customer
+  // statement PDF) can still attribute the funding back to the prepayment.
   for (const slot of billings) {
-    if (unallocatedCredit <= 0) break;
-    const capacity = slot.billed - slot.paid;
-    if (capacity <= 0) continue;
-    const take = Math.min(capacity, unallocatedCredit);
-    slot.paid += take;
-    unallocatedCredit -= take;
+    while (slot.billed - slot.paid > 0 && pendingCredits.length > 0) {
+      const head = pendingCredits[0];
+      const capacity = slot.billed - slot.paid;
+      const take = Math.min(capacity, head.remaining);
+      slot.paid += take;
+      head.remaining -= take;
+      paymentAllocations.push({
+        payment_event_id: head.event.id,
+        payment_date: head.event.date,
+        shipment_billing_id: slot.event.id,
+        related_shipment_id: slot.event.related_shipment_id!,
+        allocated_amount: take,
+      });
+      if (head.remaining <= 0) pendingCredits.shift();
+    }
   }
+
+  const unallocatedCredit = pendingCredits.reduce(
+    (s, c) => s + c.remaining,
+    0,
+  );
 
   const shipment_allocations: ShipmentAllocation[] = billings.map((slot) => {
     const outstanding = Math.max(0, slot.billed - slot.paid);

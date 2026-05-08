@@ -220,6 +220,14 @@ section("9. Prepayment(s) arriving before billing -> retroactive FIFO match");
   assertEq("fully_paid", r.shipment_allocations[0].is_fully_paid, true);
   assertEq("unallocated_credit drained", r.unallocated_credit, 0);
   assertEq("net_balance settled", r.net_balance, 0);
+  // Retroactive matches must still emit per-payment-per-shipment allocations
+  // so the "Payments applied" table and PDF statement attribute the funding
+  // back to the original prepayments.
+  assertEq("two payment allocations recorded", r.payment_allocations.length, 2);
+  assertEq("p1 allocated", r.payment_allocations[0].payment_event_id, "p1");
+  assertEq("p1 amount", r.payment_allocations[0].allocated_amount, 6300);
+  assertEq("p2 allocated", r.payment_allocations[1].payment_event_id, "p2");
+  assertEq("p2 amount", r.payment_allocations[1].allocated_amount, 14700);
 }
 
 section("10. Prepayment exceeding billing -> remainder stays as credit");

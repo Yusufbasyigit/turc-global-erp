@@ -52,7 +52,7 @@ async function custodyRequiresMovementType(
 // against a TRY-denominated account. The treasury balance is a pure SUM(quantity)
 // across an account, so adding a non-matching-currency amount silently corrupts
 // the balance with no visible error until reconciliation.
-async function assertAccountCurrencyMatches(
+export async function assertAccountCurrencyMatches(
   accountId: string,
   currency: string,
 ): Promise<void> {
@@ -310,6 +310,47 @@ export async function updateTransaction(input: {
       kind: (input.payload.kind ?? "supplier_payment") as TransactionInsert["kind"],
       currency: input.payload.currency ?? undefined,
     });
+  }
+
+  // Mirror the payment-side validateRelatedPayable check on the invoice side:
+  // if this transaction has supplier_payment children pointing at it via
+  // related_payable_id, block currency/contact/kind edits that would silently
+  // desync them. computeOutstandingByInvoice sums payment.amount currency-blind,
+  // so a EUR invoice with a EUR payment that's then flipped to USD would show
+  // outstanding = 1000 - 500 = 500 across mixed currencies.
+  const isCurrencyChanging =
+    "currency" in input.payload && input.payload.currency !== undefined;
+  const isContactChanging =
+    "contact_id" in input.payload && input.payload.contact_id !== undefined;
+  const isKindChanging =
+    "kind" in input.payload && input.payload.kind !== undefined;
+  if (isCurrencyChanging || isContactChanging || isKindChanging) {
+    const { data: existing, error: existingErr } = await supabase
+      .from("transactions")
+      .select("kind, currency, contact_id")
+      .eq("id", input.id)
+      .maybeSingle();
+    if (existingErr) throw existingErr;
+    if (existing && existing.kind === "supplier_invoice") {
+      const currencyShift =
+        isCurrencyChanging && existing.currency !== input.payload.currency;
+      const contactShift =
+        isContactChanging && existing.contact_id !== input.payload.contact_id;
+      const kindShift =
+        isKindChanging && existing.kind !== input.payload.kind;
+      if (currencyShift || contactShift || kindShift) {
+        const { count, error: pErr } = await supabase
+          .from("transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("related_payable_id", input.id);
+        if (pErr) throw pErr;
+        if ((count ?? 0) > 0) {
+          throw new Error(
+            `Cannot change ${currencyShift ? "currency" : contactShift ? "contact" : "kind"} on this supplier invoice: ${count} payment(s) link to it. Detach those payments first.`,
+          );
+        }
+      }
+    }
   }
 
   let nextAttachmentPath: string | null | undefined = undefined;
