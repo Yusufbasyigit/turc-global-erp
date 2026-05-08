@@ -46,7 +46,7 @@ import type {
   TransactionKind,
 } from "@/lib/supabase/types";
 import { DISABLED_KINDS, TRANSACTION_KINDS } from "@/lib/supabase/types";
-import { CONTACT_TYPE_BADGE_CLASSES } from "@/lib/constants";
+import { CONTACT_ROLE_BADGE_CLASSES } from "@/lib/constants";
 
 import {
   TRANSACTION_KIND_BADGE_CLASSES,
@@ -142,10 +142,7 @@ export function TransactionsIndex() {
       )
         return false;
       if (supplierFilter) {
-        if (
-          t.contacts?.type !== "supplier" ||
-          t.contact_id !== supplierFilter
-        )
+        if (!t.contacts?.is_supplier || t.contact_id !== supplierFilter)
           return false;
       }
       return true;
@@ -510,11 +507,14 @@ export function TransactionsIndex() {
                   </thead>
                   <tbody className="divide-y">
                     {g.rows.map((t) => {
-                      const contactType = t.contacts?.type ?? null;
-                      const isSupplier = contactType === "supplier";
-                      const isCustomer = contactType === "customer";
+                      const c = t.contacts;
+                      const isSupplier = Boolean(c?.is_supplier);
+                      const isCustomer = Boolean(c?.is_customer && !c?.is_supplier);
+                      const isLogistics = Boolean(
+                        c && c.is_logistics && !c.is_supplier && !c.is_customer,
+                      );
                       const isOtherContact =
-                        contactType === "logistics" || contactType === "other";
+                        Boolean(c) && (isLogistics || (!isSupplier && !isCustomer));
                       const hasPartner = Boolean(
                         t.partners?.name && !t.contacts,
                       );
@@ -561,8 +561,8 @@ export function TransactionsIndex() {
                                   className={cn(
                                     "cursor-pointer text-[10px]",
                                     isSupplier
-                                      ? CONTACT_TYPE_BADGE_CLASSES.supplier
-                                      : CONTACT_TYPE_BADGE_CLASSES.customer,
+                                      ? CONTACT_ROLE_BADGE_CLASSES.supplier
+                                      : CONTACT_ROLE_BADGE_CLASSES.customer,
                                   )}
                                 >
                                   {t.contacts.company_name}
@@ -577,9 +577,9 @@ export function TransactionsIndex() {
                                 <Badge
                                   className={cn(
                                     "cursor-pointer text-[10px]",
-                                    contactType === "logistics"
-                                      ? CONTACT_TYPE_BADGE_CLASSES.logistics
-                                      : CONTACT_TYPE_BADGE_CLASSES.other,
+                                    isLogistics
+                                      ? CONTACT_ROLE_BADGE_CLASSES.logistics
+                                      : CONTACT_ROLE_BADGE_CLASSES.other,
                                   )}
                                 >
                                   {t.contacts.company_name}

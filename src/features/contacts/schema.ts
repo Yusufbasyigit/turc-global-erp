@@ -1,12 +1,14 @@
 import { z } from "zod";
-import { BALANCE_CURRENCIES, CONTACT_TYPES } from "@/lib/supabase/types";
+import { BALANCE_CURRENCIES, CONTACT_ROLES } from "@/lib/supabase/types";
 
 const trimmed = () => z.string().trim();
 
 export const contactFormSchema = z.object({
   company_name: trimmed().min(1, "Company name is required"),
   contact_person: trimmed().optional(),
-  type: z.enum(CONTACT_TYPES, { message: "Type is required" }),
+  roles: z
+    .array(z.enum(CONTACT_ROLES))
+    .min(1, "Pick at least one role"),
   phone: trimmed().optional(),
   email: trimmed()
     .optional()

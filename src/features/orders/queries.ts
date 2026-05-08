@@ -202,7 +202,7 @@ export async function listCustomerContacts(): Promise<CustomerSummary[]> {
   const { data, error } = await supabase
     .from("contacts")
     .select("id, company_name, balance_currency")
-    .eq("type", "customer")
+    .eq("is_customer", true)
     .is("deleted_at", null)
     .order("company_name", { ascending: true });
   if (error) throw error;

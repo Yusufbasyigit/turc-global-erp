@@ -22,11 +22,12 @@ import {
 } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  CONTACT_TYPES,
-  type ContactType,
+  CONTACT_ROLES,
+  CONTACT_ROLE_COLUMN,
+  type ContactRole,
   type ContactWithCountry,
 } from "@/lib/supabase/types";
-import { CONTACT_TYPE_LABELS } from "@/lib/constants";
+import { CONTACT_ROLE_LABELS } from "@/lib/constants";
 import {
   contactKeys,
   listContactBalances,
@@ -41,14 +42,14 @@ import { DeleteContactDialog } from "./delete-contact-dialog";
 import { ArchivedContactsTable } from "./archived-contacts-table";
 import { RestoreContactDialog } from "./restore-contact-dialog";
 
-type TypeFilter = "all" | ContactType;
+type RoleFilter = "all" | ContactRole;
 type View = "active" | "archive";
 
 export function ContactsIndex() {
   const isMobile = useIsMobile();
   const [view, setView] = useState<View>("active");
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [groupByCountry, setGroupByCountry] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -98,7 +99,10 @@ export function ContactsIndex() {
     if (!contacts) return [];
     const term = search.trim().toLowerCase();
     return contacts.filter((c) => {
-      if (typeFilter !== "all" && c.type !== typeFilter) return false;
+      if (roleFilter !== "all") {
+        const col = CONTACT_ROLE_COLUMN[roleFilter];
+        if (!c[col]) return false;
+      }
       if (!term) return true;
       return (
         c.company_name.toLowerCase().includes(term) ||
@@ -107,7 +111,7 @@ export function ContactsIndex() {
         (c.phone?.toLowerCase().includes(term) ?? false)
       );
     });
-  }, [contacts, search, typeFilter]);
+  }, [contacts, search, roleFilter]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -184,17 +188,17 @@ export function ContactsIndex() {
                 />
               </div>
               <Select
-                value={typeFilter}
-                onValueChange={(v) => setTypeFilter(v as TypeFilter)}
+                value={roleFilter}
+                onValueChange={(v) => setRoleFilter(v as RoleFilter)}
               >
                 <SelectTrigger className="md:w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  {CONTACT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {CONTACT_TYPE_LABELS[t]}
+                  <SelectItem value="all">All roles</SelectItem>
+                  {CONTACT_ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {CONTACT_ROLE_LABELS[r]}
                     </SelectItem>
                   ))}
                 </SelectContent>

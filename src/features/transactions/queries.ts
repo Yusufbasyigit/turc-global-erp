@@ -11,9 +11,17 @@ import type {
 
 export type TransactionWithRelations = Transaction & {
   contacts:
-    | (Pick<Contact, "id" | "company_name" | "balance_currency"> & {
-        type: Contact["type"];
-      })
+    | Pick<
+        Contact,
+        | "id"
+        | "company_name"
+        | "balance_currency"
+        | "is_customer"
+        | "is_supplier"
+        | "is_logistics"
+        | "is_real_estate"
+        | "is_other"
+      >
     | null;
   partners: Pick<Partner, "id" | "name"> | null;
   from_account:
@@ -95,7 +103,7 @@ export async function listTransactionsForContact(
 
 const TRANSACTION_SELECT = `
   *,
-  contacts:contacts!transactions_contact_id_fkey(id, company_name, balance_currency, type),
+  contacts:contacts!transactions_contact_id_fkey(id, company_name, balance_currency, is_customer, is_supplier, is_logistics, is_real_estate, is_other),
   partners:partners!transactions_partner_id_fkey(id, name),
   from_account:accounts!transactions_from_account_id_fkey(
     id, account_name, asset_code,
@@ -166,7 +174,7 @@ export async function listSupplierContacts(): Promise<SupplierContactSummary[]> 
   const { data, error } = await supabase
     .from("contacts")
     .select("id, company_name")
-    .eq("type", "supplier")
+    .eq("is_supplier", true)
     .is("deleted_at", null)
     .order("company_name", { ascending: true });
   if (error) throw error;
@@ -229,15 +237,36 @@ export async function listTransactionsForSupplier(
 }
 
 export function computeOutstandingByInvoice(
-  invoices: Pick<Transaction, "id" | "amount">[],
-  payments: Pick<Transaction, "related_payable_id" | "amount">[],
+  invoices: Pick<Transaction, "id" | "amount" | "currency">[],
+  payments: Pick<Transaction, "related_payable_id" | "amount" | "currency">[],
 ): Map<string, number> {
+  // Index invoice currency so we can match each payment against its invoice
+  // currency-by-currency. The write-side `validateRelatedPayable` guard makes
+  // mismatched payments unreachable today, but a defensive read here keeps a
+  // direct-SQL fix-up or a future refactor from silently subtracting USD from
+  // EUR. Mismatches are skipped (not silently summed) and logged.
+  const invoiceCurrency = new Map<string, string>();
+  for (const inv of invoices) {
+    invoiceCurrency.set(inv.id, inv.currency);
+  }
+
   const paidByInvoice = new Map<string, number>();
+  let mismatched = 0;
   for (const p of payments) {
     const rid = p.related_payable_id as string | null;
     if (!rid) continue;
+    const expected = invoiceCurrency.get(rid);
+    if (expected !== undefined && p.currency !== expected) {
+      mismatched += 1;
+      continue;
+    }
     const prev = paidByInvoice.get(rid) ?? 0;
     paidByInvoice.set(rid, prev + Number(p.amount));
+  }
+  if (mismatched > 0) {
+    console.error(
+      `computeOutstandingByInvoice: skipped ${mismatched} payment(s) whose currency did not match the linked invoice. The write-side guard should have prevented this — investigate direct-SQL writes.`,
+    );
   }
   const outstanding = new Map<string, number>();
   for (const inv of invoices) {
@@ -265,19 +294,33 @@ export async function listUnpaidSupplierInvoices(
   if (invoiceRows.length === 0 && !includeInvoiceId) return [];
 
   const invoiceIds = invoiceRows.map((i) => i.id);
+  const invoiceCurrency = new Map(
+    invoiceRows.map((i) => [i.id, i.currency] as const),
+  );
   const paymentsById = new Map<string, number>();
   if (invoiceIds.length > 0) {
     const { data: payments, error: payErr } = await supabase
       .from("transactions")
-      .select("related_payable_id, amount")
+      .select("related_payable_id, amount, currency")
       .eq("kind", "supplier_payment")
       .in("related_payable_id", invoiceIds);
     if (payErr) throw payErr;
+    let mismatched = 0;
     for (const p of payments ?? []) {
       const rid = p.related_payable_id as string | null;
       if (!rid) continue;
+      const expected = invoiceCurrency.get(rid);
+      if (expected !== undefined && p.currency !== expected) {
+        mismatched += 1;
+        continue;
+      }
       const prev = paymentsById.get(rid) ?? 0;
       paymentsById.set(rid, prev + Number(p.amount));
+    }
+    if (mismatched > 0) {
+      console.error(
+        `listUnpaidSupplierInvoices: skipped ${mismatched} payment(s) whose currency did not match the linked invoice.`,
+      );
     }
   }
 

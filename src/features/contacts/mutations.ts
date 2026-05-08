@@ -28,11 +28,16 @@ function toPayload(values: ContactFormOutput): Omit<
   const isTurkey = values.country_code === "TR";
   const emptyToNull = (v: string | undefined) =>
     v && v.trim().length > 0 ? v.trim() : null;
+  const roles = new Set(values.roles);
 
   return {
     company_name: values.company_name.trim(),
     contact_person: emptyToNull(values.contact_person),
-    type: values.type,
+    is_customer: roles.has("customer"),
+    is_supplier: roles.has("supplier"),
+    is_logistics: roles.has("logistics"),
+    is_real_estate: roles.has("real_estate"),
+    is_other: roles.has("other"),
     phone: emptyToNull(values.phone),
     email: emptyToNull(values.email),
     address: emptyToNull(values.address),

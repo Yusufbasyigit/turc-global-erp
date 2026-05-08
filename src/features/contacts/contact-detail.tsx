@@ -19,7 +19,7 @@ import {
   getContact,
   listContactNotes,
 } from "./queries";
-import { ContactTypeBadge } from "./type-badge";
+import { ContactRoleBadges } from "./role-badges";
 import { CountryFlag } from "./country-flag";
 import { ContactFormDialog } from "./contact-form-dialog";
 import { DeleteContactDialog } from "./delete-contact-dialog";
@@ -90,7 +90,7 @@ export function ContactDetail({ contactId }: { contactId: string }) {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <ContactTypeBadge type={contact.type} />
+            <ContactRoleBadges contact={contact} />
             <CountryFlag country={contact.countries} />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -221,10 +221,11 @@ export function ContactDetail({ contactId }: { contactId: string }) {
         </CardContent>
       </Card>
 
-      {contact.type === "supplier" ? (
-        <SupplierLedgerSection contactId={contactId} />
-      ) : contact.type === "customer" ? (
+      {contact.is_customer ? (
         <ContactLedgerSection contactId={contactId} />
+      ) : null}
+      {contact.is_supplier || contact.is_logistics ? (
+        <SupplierLedgerSection contactId={contactId} />
       ) : null}
 
       <ContactRealEstateSection contactId={contactId} />

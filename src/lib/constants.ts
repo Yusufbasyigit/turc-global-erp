@@ -1,6 +1,6 @@
-import type { ContactType, PackagingType } from "@/lib/supabase/types";
+import type { ContactRole, PackagingType } from "@/lib/supabase/types";
 
-export const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
+export const CONTACT_ROLE_LABELS: Record<ContactRole, string> = {
   customer: "Customer",
   supplier: "Supplier",
   logistics: "Logistics",
@@ -8,7 +8,7 @@ export const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
   other: "Other",
 };
 
-export const CONTACT_TYPE_BADGE_CLASSES: Record<ContactType, string> = {
+export const CONTACT_ROLE_BADGE_CLASSES: Record<ContactRole, string> = {
   customer:
     "border-transparent bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25",
   supplier:

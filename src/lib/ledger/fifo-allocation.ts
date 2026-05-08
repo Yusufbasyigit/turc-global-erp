@@ -90,6 +90,13 @@ type BillingSlot = {
   paid: number;
 };
 
+// Matches the EPS in `partner-reimbursement-allocation.ts` and
+// `installment-allocation.ts`. Without it, fractional payments (e.g. three
+// 33.333… payments against a 100 billing, or three FX-converted amounts that
+// don't divide evenly) leave a sub-cent residue that keeps `is_fully_paid`
+// false and renders an "open" badge alongside `$0.00 outstanding`.
+const EPS = 0.001;
+
 export function allocateFifo(
   events: LedgerEvent[],
   displayCurrency: string,
@@ -131,9 +138,9 @@ export function allocateFifo(
     if (event.kind === "client_payment") {
       let remaining = amt;
       for (const slot of billings) {
-        if (remaining <= 0) break;
+        if (remaining <= EPS) break;
         const capacity = slot.billed - slot.paid;
-        if (capacity <= 0) continue;
+        if (capacity <= EPS) continue;
         const take = Math.min(capacity, remaining);
         slot.paid += take;
         remaining -= take;
@@ -145,18 +152,18 @@ export function allocateFifo(
           allocated_amount: take,
         });
       }
-      if (remaining > 0) pendingCredits.push({ event, remaining });
+      if (remaining > EPS) pendingCredits.push({ event, remaining });
       continue;
     }
 
     if (event.kind === "client_refund") {
       let remaining = amt;
-      while (remaining > 0 && pendingCredits.length > 0) {
+      while (remaining > EPS && pendingCredits.length > 0) {
         const head = pendingCredits[0];
         const take = Math.min(head.remaining, remaining);
         head.remaining -= take;
         remaining -= take;
-        if (head.remaining <= 0) pendingCredits.shift();
+        if (head.remaining <= EPS) pendingCredits.shift();
       }
       // Reverse paid billings oldest-first to match the forward FIFO direction:
       // payments fund the oldest billing first, so a refund reopens the oldest
@@ -164,8 +171,8 @@ export function allocateFifo(
       // of (sum of bills, sum of payments minus refunds) regardless of when
       // the refund landed.
       for (const slot of billings) {
-        if (remaining <= 0) break;
-        if (slot.paid <= 0) continue;
+        if (remaining <= EPS) break;
+        if (slot.paid <= EPS) continue;
         const take = Math.min(slot.paid, remaining);
         slot.paid -= take;
         remaining -= take;
@@ -181,7 +188,7 @@ export function allocateFifo(
   // downstream views (per-shipment "Payments applied" table, customer
   // statement PDF) can still attribute the funding back to the prepayment.
   for (const slot of billings) {
-    while (slot.billed - slot.paid > 0 && pendingCredits.length > 0) {
+    while (slot.billed - slot.paid > EPS && pendingCredits.length > 0) {
       const head = pendingCredits[0];
       const capacity = slot.billed - slot.paid;
       const take = Math.min(capacity, head.remaining);
@@ -194,7 +201,7 @@ export function allocateFifo(
         related_shipment_id: slot.event.related_shipment_id!,
         allocated_amount: take,
       });
-      if (head.remaining <= 0) pendingCredits.shift();
+      if (head.remaining <= EPS) pendingCredits.shift();
     }
   }
 
@@ -204,14 +211,15 @@ export function allocateFifo(
   );
 
   const shipment_allocations: ShipmentAllocation[] = billings.map((slot) => {
-    const outstanding = Math.max(0, slot.billed - slot.paid);
+    const rawOutstanding = slot.billed - slot.paid;
+    const outstanding = rawOutstanding <= EPS ? 0 : rawOutstanding;
     return {
       shipment_billing_id: slot.event.id,
       related_shipment_id: slot.event.related_shipment_id!,
       billed_amount: slot.billed,
       paid_amount: slot.paid,
       outstanding_amount: outstanding,
-      is_fully_paid: slot.paid >= slot.billed,
+      is_fully_paid: outstanding === 0,
     };
   });
 

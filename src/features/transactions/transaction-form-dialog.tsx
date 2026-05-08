@@ -142,7 +142,7 @@ async function listCustomerContacts(): Promise<
   const { data, error } = await supabase
     .from("contacts")
     .select("id, company_name, balance_currency")
-    .eq("type", "customer")
+    .eq("is_customer", true)
     .is("deleted_at", null)
     .order("company_name", { ascending: true });
   if (error) throw error;
@@ -156,7 +156,7 @@ async function listSupplierContacts(): Promise<
   const { data, error } = await supabase
     .from("contacts")
     .select("id, company_name")
-    .eq("type", "supplier")
+    .eq("is_supplier", true)
     .is("deleted_at", null)
     .order("company_name", { ascending: true });
   if (error) throw error;

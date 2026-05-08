@@ -266,5 +266,25 @@ section("11. Refund reopens the oldest paid billing first (FIFO unwind)");
   assertEq("net_balance reflects refund", r.net_balance, 300);
 }
 
+section("12. Float residue from fractional payments still marks billing fully paid (EPS)");
+{
+  // 100 EUR billing covered by three 33.33 + 33.33 + 33.34 payments. Pre-fix,
+  // strict `slot.paid >= slot.billed` left is_fully_paid = false because the
+  // sum hits ~100.00000000000001 in IEEE-754 (or the inverse case lands ~1e-15
+  // short). Mirrors partner-reimbursement-allocation test 8.
+  const r = allocateFifo(
+    [
+      billing("b1", "2026-01-01", 100, "EUR", "s1"),
+      payment("p1", "2026-01-02", 33.33, "EUR"),
+      payment("p2", "2026-01-03", 33.33, "EUR"),
+      payment("p3", "2026-01-04", 33.34, "EUR"),
+    ],
+    "EUR",
+  );
+  assertEq("billing reads as fully paid", r.shipment_allocations[0].is_fully_paid, true);
+  assertEq("outstanding zeroed", r.shipment_allocations[0].outstanding_amount, 0);
+  assertEq("no leaked unallocated credit", r.unallocated_credit, 0);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -495,7 +495,7 @@ async function scenario1(n: Notes) {
 
   const customer = await createContact({
     company_name: "AUDIT_CUSTOMER_FR",
-    type: "customer",
+    roles: ["customer"],
     country_code: country ?? undefined,
     balance_currency: "EUR",
     tax_id: "FR12345678901",
@@ -515,7 +515,7 @@ async function scenario1(n: Notes) {
   // The orders module takes default_supplier in product schema
   const supplier = await createContact({
     company_name: "AUDIT_SUPPLIER_TR",
-    type: "supplier",
+    roles: ["supplier"],
     country_code: undefined,
     balance_currency: "TRY",
   } as Parameters<typeof createContact>[0]);

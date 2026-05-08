@@ -99,15 +99,15 @@ const BALANCE_KINDS = [
   "supplier_payment",
 ] as const;
 
-const SUPPLIER_LIKE_TYPES = new Set(["supplier", "logistics"]);
-
 export async function listContactBalances(): Promise<ContactBalance[]> {
   const supabase = createClient();
 
   const [contactsRes, txRes] = await Promise.all([
     supabase
       .from("contacts")
-      .select("id, balance_currency, type")
+      .select(
+        "id, balance_currency, is_customer, is_supplier, is_logistics, is_real_estate, is_other",
+      )
       .is("deleted_at", null),
     supabase
       .from("transactions")
@@ -144,7 +144,10 @@ export async function listContactBalances(): Promise<ContactBalance[]> {
       continue;
     }
 
-    const isSupplierLike = SUPPLIER_LIKE_TYPES.has(c.type);
+    // For dual-role contacts (customer + supplier on the same record),
+    // the supplier ledger takes precedence in the contacts list balance
+    // column. The contact detail page renders both ledgers stacked.
+    const isSupplierLike = c.is_supplier || c.is_logistics;
 
     if (isSupplierLike) {
       let net = 0;
