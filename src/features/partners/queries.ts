@@ -12,6 +12,12 @@ export type PartnerWithStats = Partner & {
   last_activity: string | null;
 };
 
+// Registry-style fetch: returns ALL partners, including soft-deleted ones.
+// The "Manage partners" drawer needs the deleted set to render the
+// soft-deleted footer + restore action; pickers (loan-event-dialog,
+// loan-repayment-dialog) filter `is_active && deleted_at === null`
+// client-side. Do NOT add `.is("deleted_at", null)` here — it would hide
+// the restore affordance.
 export async function listPartnersWithStats(): Promise<PartnerWithStats[]> {
   const supabase = createClient();
   const { data, error } = await supabase

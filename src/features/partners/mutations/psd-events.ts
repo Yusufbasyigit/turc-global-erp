@@ -65,8 +65,9 @@ async function deleteLegMovementAndTransaction(
   transactionId: string,
 ): Promise<void> {
   const supabase = createClient();
-  // Movement is set null on transaction delete via FK ON DELETE SET NULL,
-  // but we want it gone — drop the movement first, then the transaction.
+  // FK is ON DELETE CASCADE (20260511120000), so deleting the transaction
+  // would also clear the movement. Keep the explicit movement delete first
+  // for readability and as belt-and-braces against FK changes.
   const { error: mvErr } = await supabase
     .from("treasury_movements")
     .delete()
@@ -269,8 +270,9 @@ export async function updatePsdEvent(
 export async function deletePsdEvent(id: string): Promise<void> {
   const supabase = createClient();
 
-  // Manually clear movements first — the FK uses ON DELETE SET NULL on
-  // source_transaction_id, but we want to remove the withdraw movements too.
+  // FK is ON DELETE CASCADE (20260511120000) so deleting the transactions
+  // also drops their movements. The explicit per-leg helper makes the
+  // intent visible and keeps the loop safe against future FK changes.
   const { data: legs, error: legsErr } = await supabase
     .from("transactions")
     .select("id")

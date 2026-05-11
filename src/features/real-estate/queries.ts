@@ -38,6 +38,10 @@ export const realEstateKeys = {
     [...realEstateKeys.all, "by-contact", contactId] as const,
 };
 
+// Embedded `contact:` join intentionally does NOT filter `deleted_at` —
+// historical deals keep the soft-deleted contact attached for audit-trail
+// display. The deal-create dialog's contact picker filters `deleted_at`
+// directly (see src/features/contacts/queries.ts:28 — listContacts).
 const DEAL_SELECT = `
   id, label, sub_type, contact_id, currency, start_date, notes,
   deleted_at, created_time, edited_time, created_by, edited_by,
