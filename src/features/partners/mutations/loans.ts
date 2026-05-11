@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/client";
 import { AUTH_DISABLED } from "@/lib/auth-mode";
-import { spawnMovementFromTransaction } from "@/features/transactions/mutations";
+import {
+  assertAccountCurrencyMatches,
+  spawnMovementFromTransaction,
+} from "@/features/transactions/mutations";
 import type {
   BalanceCurrency,
   LoanInstallment,
@@ -161,6 +164,11 @@ export async function updateLoan(
     edited_by: userId,
     edited_time: now,
   };
+  // Same guard spawnMovementFromTransaction enforces on create — without it,
+  // switching a TRY loan's source to a USD account would silently dump TRY
+  // quantity into the USD account's balance.
+  await assertAccountCurrencyMatches(input.from_account_id, input.currency);
+
   const { data: txn, error } = await supabase
     .from("transactions")
     .update(txnUpdate)

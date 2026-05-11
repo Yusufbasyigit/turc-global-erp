@@ -135,14 +135,41 @@ export type Shipment = PublicTable<"shipments">["Row"];
 export type ShipmentInsert = PublicTable<"shipments">["Insert"];
 export type ShipmentUpdate = PublicTable<"shipments">["Update"];
 
-export const CONTACT_TYPES = [
+export const CONTACT_ROLES = [
   "customer",
   "supplier",
   "logistics",
   "real_estate",
   "other",
 ] as const;
-export type ContactType = (typeof CONTACT_TYPES)[number];
+export type ContactRole = (typeof CONTACT_ROLES)[number];
+
+// Maps a role to its boolean column on the contacts table.
+export const CONTACT_ROLE_COLUMN = {
+  customer: "is_customer",
+  supplier: "is_supplier",
+  logistics: "is_logistics",
+  real_estate: "is_real_estate",
+  other: "is_other",
+} as const satisfies Record<ContactRole, keyof Contact>;
+
+type ContactRoleFlags = {
+  is_customer: boolean;
+  is_supplier: boolean;
+  is_logistics: boolean;
+  is_real_estate: boolean;
+  is_other: boolean;
+};
+
+export function rolesOf(c: ContactRoleFlags): ContactRole[] {
+  const out: ContactRole[] = [];
+  if (c.is_customer) out.push("customer");
+  if (c.is_supplier) out.push("supplier");
+  if (c.is_logistics) out.push("logistics");
+  if (c.is_real_estate) out.push("real_estate");
+  if (c.is_other) out.push("other");
+  return out;
+}
 
 export const REAL_ESTATE_SUB_TYPES = ["rent", "sale"] as const;
 export type RealEstateSubType = (typeof REAL_ESTATE_SUB_TYPES)[number];

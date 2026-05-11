@@ -195,6 +195,11 @@ export type Database = {
           edited_time: string | null
           email: string | null
           id: string
+          is_customer: boolean
+          is_logistics: boolean
+          is_other: boolean
+          is_real_estate: boolean
+          is_supplier: boolean
           notes: string | null
           phone: string | null
           tax_id: string | null
@@ -215,6 +220,11 @@ export type Database = {
           edited_time?: string | null
           email?: string | null
           id?: string
+          is_customer?: boolean
+          is_logistics?: boolean
+          is_other?: boolean
+          is_real_estate?: boolean
+          is_supplier?: boolean
           notes?: string | null
           phone?: string | null
           tax_id?: string | null
@@ -235,6 +245,11 @@ export type Database = {
           edited_time?: string | null
           email?: string | null
           id?: string
+          is_customer?: boolean
+          is_logistics?: boolean
+          is_other?: boolean
+          is_real_estate?: boolean
+          is_supplier?: boolean
           notes?: string | null
           phone?: string | null
           tax_id?: string | null

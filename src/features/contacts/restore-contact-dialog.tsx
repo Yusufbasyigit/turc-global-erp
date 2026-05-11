@@ -14,6 +14,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { restoreContact } from "./mutations";
 import { contactKeys } from "./queries";
+import { orderKeys } from "@/features/orders/queries";
+import { shipmentKeys } from "@/features/shipments/queries";
+import { transactionKeys } from "@/features/transactions/queries";
+import { productKeys } from "@/features/products/queries";
 
 export function RestoreContactDialog({
   contactId,
@@ -32,6 +36,10 @@ export function RestoreContactDialog({
     mutationFn: () => restoreContact(contactId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: contactKeys.all });
+      qc.invalidateQueries({ queryKey: orderKeys.all });
+      qc.invalidateQueries({ queryKey: shipmentKeys.all });
+      qc.invalidateQueries({ queryKey: transactionKeys.all });
+      qc.invalidateQueries({ queryKey: productKeys.all });
       toast.success(`${contactName} restored`);
       onOpenChange(false);
     },

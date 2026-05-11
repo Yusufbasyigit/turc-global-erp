@@ -6,6 +6,14 @@ import type {
 
 export const FX_STALE_MS = 24 * 60 * 60 * 1000;
 
+// Wide enough not to fight legitimate trade spreads (a USD→Altın deal can
+// easily diverge 5–10% from the public spot mid by the time fees and dealer
+// margin are baked in), tight enough to catch a typo like "100" instead of
+// "1000" on the destination quantity. The check falls through to no-op when
+// either side lacks a snapshot, so the threshold only bites once both rates
+// are known.
+export const TRADE_RATE_DIVERGENCE_THRESHOLD = 0.25;
+
 export const FX_API_BASE = "https://api.frankfurter.dev/v1";
 export const FX_SOURCE = "frankfurter.dev";
 

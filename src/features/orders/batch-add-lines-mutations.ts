@@ -71,11 +71,16 @@ export async function batchAddLinesFromProforma(args: {
     .filter((n) => n.length > 0);
   const existingByLowerName = new Map<string, Product>();
   if (trimmedNames.length > 0) {
+    // Exclude soft-deleted products — `is_active` flips independently of
+    // `deleted_at` (deleteProduct only stamps deleted_at), so without this
+    // filter a name match against a deleted-but-still-active row would
+    // attach the new order line to a product the user thinks is gone.
     const { data: matches, error: matchErr } = await supabase
       .from("products")
       .select("*")
       .in("product_name", trimmedNames)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .is("deleted_at", null);
     if (matchErr) throw matchErr;
     for (const p of matches ?? []) {
       const key = (p.product_name ?? "").trim().toLowerCase();

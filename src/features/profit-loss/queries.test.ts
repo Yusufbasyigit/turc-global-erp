@@ -6,6 +6,36 @@ import {
 import type { TransactionWithRelations } from "@/features/transactions/queries";
 import type { FxSnapshot, MonthlyFxOverride } from "@/lib/supabase/types";
 
+function snap(
+  currency_code: string,
+  snapshot_date: string,
+  rate_to_usd: number,
+): FxSnapshot {
+  return {
+    id: `s-${currency_code}-${snapshot_date}`,
+    currency_code,
+    snapshot_date,
+    rate_to_usd,
+    fetched_at: `${snapshot_date}T00:00:00Z`,
+    source: "frankfurter",
+  } as unknown as FxSnapshot;
+}
+
+function overrideFor(
+  period: string,
+  currency_code: string,
+  rate_to_usd: number,
+): MonthlyFxOverride {
+  return {
+    period,
+    currency_code,
+    rate_to_usd,
+    note: null,
+    set_at: "2026-04-28T00:00:00Z",
+    set_by: null,
+  } as unknown as MonthlyFxOverride;
+}
+
 let passed = 0;
 let failed = 0;
 
@@ -232,6 +262,65 @@ section("7. supplier_invoice is NOT counted as expense (off-P&L liability)");
   ];
   const agg = aggregateMonthlyTotals("2026-04", txs, [], []);
   assertEq("supplier_invoice ignored", agg.totals.expenseUsd, 0);
+}
+
+section(
+  "8. Mixed USD/TRY/EUR month: per-row currency rate is used; EUR no longer dropped",
+);
+{
+  // Pre-fix the aggregator only resolved a TRY rate and only converted TRY.
+  // Any EUR/GBP row fell through the `else` branch, flipped hasUnconverted,
+  // and never contributed to revenueUsd / expenseUsd. Post-fix each non-USD
+  // row resolves its own rate.
+  const txs: TransactionWithRelations[] = [
+    tx({ date: "2026-04-05", kind: "shipment_billing", amount: 1000, currency: "USD" }),
+    tx({ date: "2026-04-06", kind: "shipment_billing", amount: 100000, currency: "TRY" }),
+    tx({ date: "2026-04-07", kind: "shipment_billing", amount: 2000, currency: "EUR" }),
+    tx({ date: "2026-04-20", kind: "expense", amount: 50, currency: "EUR" }),
+  ];
+  const overs = [
+    overrideFor("2026-04", "TRY", 0.025),
+    overrideFor("2026-04", "EUR", 1.07),
+  ];
+  const agg = aggregateMonthlyTotals("2026-04", txs, [], overs);
+  // Revenue: 1000 USD + 100000*0.025 TRY + 2000*1.07 EUR = 1000 + 2500 + 2140
+  assertEq("revenueUsd mixes USD + TRY + EUR", agg.totals.revenueUsd, 5640);
+  assertEq("expenseUsd uses EUR rate", agg.totals.expenseUsd, 53.5);
+  assertEq("net = revenue - expense", agg.totals.netUsd, 5640 - 53.5);
+  // hasUnconverted should be false because every row had a resolvable rate.
+  assertEq("hasUnconverted false when every rate resolves", agg.totals.hasUnconverted, false);
+  // Banner rate stays TRY.
+  assertEq("returned rate is the TRY rate", agg.rate.value, 0.025);
+}
+
+section(
+  "9. EUR row with missing EUR rate flips hasUnconverted but TRY conversion still works",
+);
+{
+  const txs: TransactionWithRelations[] = [
+    tx({ date: "2026-04-05", kind: "shipment_billing", amount: 100000, currency: "TRY" }),
+    tx({ date: "2026-04-07", kind: "shipment_billing", amount: 1000, currency: "EUR" }),
+  ];
+  const overs = [overrideFor("2026-04", "TRY", 0.025)];
+  const agg = aggregateMonthlyTotals("2026-04", txs, [], overs);
+  // TRY converts: 100000 * 0.025 = 2500. EUR is unconverted.
+  assertEq("revenue only counts TRY conversion", agg.totals.revenueUsd, 2500);
+  assertEq("hasUnconverted flipped by missing EUR rate", agg.totals.hasUnconverted, true);
+  // TRY rate is present so hasMissingRate stays false.
+  assertEq("hasMissingRate stays false (TRY rate present)", agg.hasMissingRate, false);
+}
+
+section(
+  "10. EUR rate from FX snapshot (not override) is used when no override exists",
+);
+{
+  const txs: TransactionWithRelations[] = [
+    tx({ date: "2026-04-15", kind: "shipment_billing", amount: 500, currency: "EUR" }),
+  ];
+  const snaps = [snap("EUR", "2026-04-10", 1.08)];
+  const agg = aggregateMonthlyTotals("2026-04", txs, snaps, []);
+  assertEq("EUR snapshot rate applied", agg.totals.revenueUsd, 540);
+  assertEq("hasUnconverted false", agg.totals.hasUnconverted, false);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

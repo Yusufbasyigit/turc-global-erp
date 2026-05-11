@@ -89,6 +89,26 @@ export async function updateShipment(input: {
     await assertShipmentEditable(input.id);
   }
 
+  // invoice_currency switches re-denominate the booked billing transaction
+  // (refreshShipmentAccruals copies sales as a number into the new currency,
+  // so 1000 EUR becomes 1000 USD). Block any change once the shipment leaves
+  // draft. Without this guard, the customer ledger silently changes which
+  // currency they owe in.
+  if (
+    "invoice_currency" in input.payload &&
+    input.payload.invoice_currency !== undefined
+  ) {
+    const current = await loadShipment(input.id);
+    if (
+      current.status !== "draft" &&
+      current.invoice_currency !== input.payload.invoice_currency
+    ) {
+      throw new Error(
+        `Cannot change invoice currency from ${current.invoice_currency} to ${input.payload.invoice_currency} on a ${current.status} shipment — the booked billing transaction would be silently re-denominated. Adjust before booking, or revert the shipment to draft first.`,
+      );
+    }
+  }
+
   // When freight is changing, snapshot the pre-update freight + audit
   // columns so we can roll the row back if the post-update accrual refresh
   // throws and leaves the row out of sync with the ledger.

@@ -13,7 +13,7 @@ import {
 import type { ContactWithCountry } from "@/lib/supabase/types";
 import { formatCurrency } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
-import { ContactTypeBadge } from "./type-badge";
+import { ContactRoleBadges } from "./role-badges";
 import { CountryFlag } from "./country-flag";
 import type { ContactBalance } from "./queries";
 
@@ -34,7 +34,7 @@ export function ContactsCardList({
         <Card key={c.id}>
           <CardHeader className="flex-row items-start justify-between gap-2 pb-2">
             <div className="min-w-0 space-y-1">
-              <ContactTypeBadge type={c.type} />
+              <ContactRoleBadges contact={c} />
               <CardTitle className="truncate text-base">
                 <Link href={`/contacts/${c.id}`} className="hover:underline">
                   {c.company_name}

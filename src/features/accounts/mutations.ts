@@ -75,6 +75,29 @@ export async function updateAccount(
   const supabase = createClient();
   const userId = await currentUserId();
 
+  // Changing asset_code on an account that already has movements would
+  // silently re-denominate the balance — e.g., 1000 USD becomes 1000 EUR
+  // because SUM(quantity) is currency-blind. Block it once any movement
+  // exists; the user can deactivate this account and create a fresh one.
+  const { data: existing, error: existingErr } = await supabase
+    .from("accounts")
+    .select("asset_code")
+    .eq("id", id)
+    .maybeSingle();
+  if (existingErr) throw existingErr;
+  if (existing && existing.asset_code !== values.asset_code) {
+    const { count, error: mvErr } = await supabase
+      .from("treasury_movements")
+      .select("id", { count: "exact", head: true })
+      .eq("account_id", id);
+    if (mvErr) throw mvErr;
+    if ((count ?? 0) > 0) {
+      throw new Error(
+        `Cannot change currency from ${existing.asset_code} to ${values.asset_code}: this account has ${count} movement(s). Deactivate it and create a new account in the new currency instead.`,
+      );
+    }
+  }
+
   const payload: AccountUpdate = {
     account_name: values.account_name,
     asset_code: values.asset_code,

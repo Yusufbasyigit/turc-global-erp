@@ -21,7 +21,7 @@ import {
 import type { ContactWithCountry } from "@/lib/supabase/types";
 import { formatCurrency } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
-import { ContactTypeBadge } from "./type-badge";
+import { ContactRoleBadges } from "./role-badges";
 import { CountryFlag } from "./country-flag";
 import type { ContactBalance } from "./queries";
 
@@ -42,7 +42,7 @@ export function ContactsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[110px]">Type</TableHead>
+            <TableHead className="w-[180px]">Roles</TableHead>
             <TableHead>Company</TableHead>
             <TableHead>Contact</TableHead>
             <TableHead>Phone</TableHead>
@@ -68,7 +68,7 @@ export function ContactsTable({
               }}
             >
               <TableCell>
-                <ContactTypeBadge type={c.type} />
+                <ContactRoleBadges contact={c} />
               </TableCell>
               <TableCell className="font-medium">
                 <Link

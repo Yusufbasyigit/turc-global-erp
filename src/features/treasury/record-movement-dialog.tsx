@@ -8,9 +8,13 @@ import {
   type FieldPath,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 import {
   Dialog,
@@ -47,7 +51,12 @@ import {
   createPairedMovement,
   createSingleLegMovement,
 } from "./mutations";
-import { treasuryKeys } from "./queries";
+import {
+  latestByKey,
+  listFxSnapshots,
+  listPriceSnapshots,
+  treasuryKeys,
+} from "./queries";
 import { accountKeys } from "@/features/accounts/queries";
 import { formatQuantity, todayDateString } from "./fx-utils";
 import {
@@ -56,7 +65,9 @@ import {
   ORTAK_TYPE_LABELS,
   PAIRED_KINDS,
   RECORDABLE_MOVEMENT_KINDS,
+  TRADE_RATE_DIVERGENCE_THRESHOLD,
 } from "./constants";
+import { checkTradePlausibility } from "./trade-plausibility";
 
 type StepId = "kind" | "accounts" | "details" | "ortak";
 
@@ -152,6 +163,23 @@ export function RecordMovementDialog({
   const fromAssetCode = useWatch({ control: form.control, name: "from_asset_code" });
   const toAssetCode = useWatch({ control: form.control, name: "to_asset_code" });
 
+  const fxQ = useQuery({
+    queryKey: treasuryKeys.fx(),
+    queryFn: listFxSnapshots,
+    enabled: kind === "trade",
+  });
+  const pricesQ = useQuery({
+    queryKey: treasuryKeys.prices(),
+    queryFn: listPriceSnapshots,
+    enabled: kind === "trade",
+  });
+
+  const accountById = useMemo(() => {
+    const map = new Map<string, AccountWithCustody>();
+    for (const a of accounts) map.set(a.id, a);
+    return map;
+  }, [accounts]);
+
   const tradeRatePreview = useMemo(() => {
     if (kind !== "trade") return null;
     const qFrom = Number(quantityFromRaw);
@@ -172,11 +200,56 @@ export function RecordMovementDialog({
     };
   }, [kind, quantityFromRaw, quantityToRaw, fromAssetCode, toAssetCode]);
 
-  const accountById = useMemo(() => {
-    const map = new Map<string, AccountWithCustody>();
-    for (const a of accounts) map.set(a.id, a);
-    return map;
-  }, [accounts]);
+  const tradePlausibility = useMemo(() => {
+    if (kind !== "trade") return null;
+    const qFrom = Number(quantityFromRaw);
+    const qTo = Number(quantityToRaw);
+    if (
+      !Number.isFinite(qFrom) ||
+      !Number.isFinite(qTo) ||
+      qFrom <= 0 ||
+      qTo <= 0
+    ) {
+      return null;
+    }
+    const fromAcct = fromAccountId ? accountById.get(fromAccountId) : null;
+    const toAcct = toAccountId ? accountById.get(toAccountId) : null;
+    if (!fromAcct || !toAcct) return null;
+    if (!fromAcct.asset_code || !toAcct.asset_code) return null;
+    const fxMap = latestByKey(
+      fxQ.data ?? [],
+      (r) => r.currency_code.toUpperCase(),
+      (r) => r.fetched_at,
+    );
+    const priceMap = latestByKey(
+      pricesQ.data ?? [],
+      (r) => r.asset_code,
+      (r) => r.snapshot_date,
+    );
+    return checkTradePlausibility({
+      from: {
+        asset_code: fromAcct.asset_code,
+        asset_type: fromAcct.asset_type ?? "",
+      },
+      to: {
+        asset_code: toAcct.asset_code,
+        asset_type: toAcct.asset_type ?? "",
+      },
+      quantityFrom: qFrom,
+      quantityTo: qTo,
+      fxMap,
+      priceMap,
+    });
+  }, [
+    kind,
+    quantityFromRaw,
+    quantityToRaw,
+    fromAccountId,
+    toAccountId,
+    accountById,
+    fxQ.data,
+    pricesQ.data,
+  ]);
 
   const selectedAccounts = useMemo(() => {
     if (isPaired) {
@@ -468,7 +541,14 @@ export function RecordMovementDialog({
                     />
                   </Field>
                   {tradeRatePreview ? (
-                    <div className="md:col-span-2 rounded-md border bg-muted/30 p-3 text-sm">
+                    <div
+                      className={cn(
+                        "md:col-span-2 rounded-md border p-3 text-sm",
+                        tradePlausibility?.status === "blocked"
+                          ? "border-destructive/40 bg-destructive/5"
+                          : "bg-muted/30",
+                      )}
+                    >
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">
                         Implied rate
                       </div>
@@ -478,6 +558,42 @@ export function RecordMovementDialog({
                       <div className="font-mono text-muted-foreground">
                         {tradeRatePreview.inverse}
                       </div>
+                      {tradePlausibility &&
+                      tradePlausibility.status !== "no_snapshot" ? (
+                        <div className="mt-2 border-t pt-2 text-xs">
+                          <div className="text-muted-foreground">
+                            Latest market rate
+                          </div>
+                          <div className="font-mono">
+                            1 {fromAssetCode || "source"} ≈{" "}
+                            {formatQuantity(tradePlausibility.expectedRate)}{" "}
+                            {toAssetCode || "destination"}
+                          </div>
+                          {tradePlausibility.status === "blocked" ? (
+                            <div className="mt-1.5 flex items-start gap-1.5 text-destructive">
+                              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                              <span>
+                                Off by{" "}
+                                {(tradePlausibility.divergence * 100).toFixed(
+                                  0,
+                                )}
+                                % vs market (threshold{" "}
+                                {(
+                                  TRADE_RATE_DIVERGENCE_THRESHOLD * 100
+                                ).toFixed(0)}
+                                %). Double-check both quantities — saving will
+                                be blocked.
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="mt-1 text-muted-foreground">
+                              Within{" "}
+                              {(tradePlausibility.divergence * 100).toFixed(0)}
+                              % of market.
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   ) : (
                     <p className="md:col-span-2 text-xs text-muted-foreground">

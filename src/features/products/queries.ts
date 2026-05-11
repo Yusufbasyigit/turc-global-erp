@@ -79,7 +79,7 @@ export async function listSupplierContacts(): Promise<SupplierSummary[]> {
   const { data, error } = await supabase
     .from("contacts")
     .select("id, company_name")
-    .eq("type", "supplier")
+    .eq("is_supplier", true)
     .is("deleted_at", null)
     .order("company_name", { ascending: true });
 

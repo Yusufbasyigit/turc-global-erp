@@ -65,6 +65,12 @@ type GoldApiResponse = {
   price: number;
 };
 
+// Intentionally NO `.is("deleted_at", null)` filter: the refresh engine must
+// keep populating fx_snapshots for any currency the company ever held,
+// even after the corresponding account is soft-deleted. Historical ledger
+// queries (and any future restored account) depend on continuous price
+// data, and the upstream API call is the same regardless of how many
+// accounts hold the code.
 async function listFiatCodes(client: Client): Promise<string[]> {
   const { data, error } = await client
     .from("accounts")
@@ -79,6 +85,8 @@ async function listFiatCodes(client: Client): Promise<string[]> {
   return Array.from(codes);
 }
 
+// Same rationale as listFiatCodes above: include soft-deleted accounts so
+// price snapshots stay continuous even when an account is retired.
 async function listNonFiatAssets(
   client: Client,
 ): Promise<{ asset_code: string; asset_type: string }[]> {

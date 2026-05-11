@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useForm,
   Controller,
@@ -30,26 +30,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Combobox } from "@/components/ui/combobox";
+import { Combobox, type ComboboxItem } from "@/components/ui/combobox";
 import { cn } from "@/lib/utils";
 import {
   BALANCE_CURRENCIES,
-  CONTACT_TYPES,
+  CONTACT_ROLES,
+  rolesOf,
   type ContactWithCountry,
+  type ContactRole,
 } from "@/lib/supabase/types";
-import { CONTACT_TYPE_LABELS } from "@/lib/constants";
+import { CONTACT_ROLE_LABELS } from "@/lib/constants";
 import {
   contactFormSchema,
   type ContactFormOutput,
   type ContactFormValues,
 } from "./schema";
-import { countryKeys, listCountries, contactKeys, getContact } from "./queries";
+import {
+  countryKeys,
+  listCountries,
+  contactKeys,
+  getContact,
+  listContacts,
+} from "./queries";
 import { createContact, updateContact } from "./mutations";
+import { orderKeys } from "@/features/orders/queries";
+import { shipmentKeys } from "@/features/shipments/queries";
+import { transactionKeys } from "@/features/transactions/queries";
+import { productKeys } from "@/features/products/queries";
 
 const DEFAULT_VALUES: ContactFormValues = {
   company_name: "",
   contact_person: "",
-  type: "customer",
+  roles: ["customer"],
   phone: "",
   email: "",
   address: "",
@@ -73,7 +85,7 @@ const STEPS: {
     id: "identity",
     title: "Identity",
     description: "Who this contact is.",
-    fields: ["company_name", "contact_person", "type"],
+    fields: ["company_name", "contact_person", "roles"],
   },
   {
     id: "contact",
@@ -96,12 +108,11 @@ const STEPS: {
 ];
 
 function toFormValues(c: ContactWithCountry): ContactFormValues {
+  const existingRoles = rolesOf(c);
   return {
     company_name: c.company_name ?? "",
     contact_person: c.contact_person ?? "",
-    type: (CONTACT_TYPES as readonly string[]).includes(c.type ?? "")
-      ? (c.type as ContactFormValues["type"])
-      : "other",
+    roles: existingRoles.length > 0 ? existingRoles : ["other"],
     phone: c.phone ?? "",
     email: c.email ?? "",
     address: c.address ?? "",
@@ -135,6 +146,13 @@ export function ContactFormDialog({
     queryKey: countryKeys.all,
     queryFn: listCountries,
     staleTime: Infinity,
+  });
+
+  const { data: allContacts = [] } = useQuery({
+    queryKey: contactKeys.list(),
+    queryFn: listContacts,
+    staleTime: 60_000,
+    enabled: open,
   });
 
   const { data: existing } = useQuery({
@@ -178,10 +196,22 @@ export function ContactFormDialog({
     if (open) setStepIndex(0);
   }, [open]);
 
+  // Orders / shipments / transactions / products lists JOIN contacts (for
+  // company_name display, role-flag-filtered pickers, etc.). Editing a
+  // contact's name or roles must invalidate those caches too, otherwise the
+  // lists show stale joined data until the next focus refetch.
+  const invalidateContactDependents = () => {
+    qc.invalidateQueries({ queryKey: contactKeys.all });
+    qc.invalidateQueries({ queryKey: orderKeys.all });
+    qc.invalidateQueries({ queryKey: shipmentKeys.all });
+    qc.invalidateQueries({ queryKey: transactionKeys.all });
+    qc.invalidateQueries({ queryKey: productKeys.all });
+  };
+
   const createMut = useMutation({
     mutationFn: createContact,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: contactKeys.all });
+      invalidateContactDependents();
       toast.success("Contact created");
       onOpenChange(false);
     },
@@ -191,7 +221,7 @@ export function ContactFormDialog({
   const updateMut = useMutation({
     mutationFn: (values: ContactFormOutput) => updateContact(contactId!, values),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: contactKeys.all });
+      invalidateContactDependents();
       toast.success("Contact updated");
       onOpenChange(false);
     },
@@ -219,6 +249,35 @@ export function ContactFormDialog({
     name: "country_code",
   });
   const isTurkey = watchCountry === "TR";
+
+  const watchCity = useWatch({ control: form.control, name: "city" });
+
+  const cityOptions: ComboboxItem[] = useMemo(() => {
+    const sorted = [...allContacts].sort((a, b) => {
+      const ta = a.edited_time ?? a.created_time ?? "";
+      const tb = b.edited_time ?? b.created_time ?? "";
+      return tb.localeCompare(ta);
+    });
+
+    const seen = new Map<string, string>();
+    for (const c of sorted) {
+      const raw = c.city?.trim();
+      if (!raw) continue;
+      if (watchCountry && c.country_code !== watchCountry) continue;
+      const key = raw.toLowerCase();
+      if (!seen.has(key)) seen.set(key, raw);
+    }
+
+    const current = watchCity?.trim();
+    if (current) {
+      const key = current.toLowerCase();
+      if (!seen.has(key)) seen.set(key, current);
+    }
+
+    return Array.from(seen.values())
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({ value: name, label: name }));
+  }, [allContacts, watchCountry, watchCity]);
 
   const isLastStep = stepIndex === STEPS.length - 1;
   const currentStep = STEPS[stepIndex];
@@ -301,25 +360,18 @@ export function ContactFormDialog({
                 </Field>
 
                 <Field
-                  label="Type *"
-                  error={form.formState.errors.type?.message}
+                  label="Roles * (pick one or more)"
+                  error={form.formState.errors.roles?.message}
+                  className="md:col-span-2"
                 >
                   <Controller
-                    name="type"
+                    name="roles"
                     control={form.control}
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CONTACT_TYPES.map((t) => (
-                            <SelectItem key={t} value={t}>
-                              {CONTACT_TYPE_LABELS[t]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <RolePicker
+                        value={field.value ?? []}
+                        onChange={field.onChange}
+                      />
                     )}
                   />
                 </Field>
@@ -358,7 +410,22 @@ export function ContactFormDialog({
                 </Field>
 
                 <Field label="City">
-                  <Input placeholder="Istanbul" {...form.register("city")} />
+                  <Controller
+                    name="city"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Combobox
+                        items={cityOptions}
+                        value={field.value || null}
+                        onChange={(v) => field.onChange(v ?? "")}
+                        onCreate={(label) => field.onChange(label)}
+                        createLabel={(q) => `Use "${q}"`}
+                        placeholder="Istanbul"
+                        searchPlaceholder="Search city…"
+                        emptyMessage="No matching city — type to add one."
+                      />
+                    )}
+                  />
                 </Field>
 
                 <Field
@@ -545,6 +612,55 @@ function Stepper({
         );
       })}
     </ol>
+  );
+}
+
+function RolePicker({
+  value,
+  onChange,
+}: {
+  value: ContactRole[];
+  onChange: (next: ContactRole[]) => void;
+}) {
+  const selected = new Set(value);
+  const toggle = (role: ContactRole) => {
+    const next = new Set(selected);
+    if (next.has(role)) next.delete(role);
+    else next.add(role);
+    // Preserve canonical order from CONTACT_ROLES.
+    onChange(CONTACT_ROLES.filter((r) => next.has(r)));
+  };
+  return (
+    <div className="flex flex-wrap gap-2">
+      {CONTACT_ROLES.map((role) => {
+        const active = selected.has(role);
+        return (
+          <button
+            key={role}
+            type="button"
+            onClick={() => toggle(role)}
+            aria-pressed={active}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
+              active
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-foreground hover:bg-muted/50",
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                "flex size-3.5 items-center justify-center rounded-full text-[10px]",
+                active ? "bg-primary-foreground/20" : "bg-muted",
+              )}
+            >
+              {active ? <Check className="size-2.5" /> : null}
+            </span>
+            {CONTACT_ROLE_LABELS[role]}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

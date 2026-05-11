@@ -143,6 +143,7 @@ async function listLedgerForContactCompat(contactId: string): Promise<
   Array<{
     id: string;
     transaction_date: string;
+    created_time: string;
     kind: string;
     amount: number;
     currency: string;
@@ -196,6 +197,7 @@ async function listLedgerForContactCompat(contactId: string): Promise<
     return (data ?? []).map((r) => ({
       id: r.id,
       transaction_date: r.transaction_date,
+      created_time: r.created_time,
       kind: r.kind,
       amount: Number(r.amount),
       currency: r.currency,
@@ -316,6 +318,7 @@ async function assembleStatementCompat(shipmentId: string) {
     const events: LedgerEvent[] = ledger.map((r) => ({
       id: r.id,
       date: r.transaction_date,
+      created_time: r.created_time,
       kind: r.kind as LedgerEvent["kind"],
       amount: Number(r.amount),
       currency: r.currency,
@@ -495,7 +498,7 @@ async function scenario1(n: Notes) {
 
   const customer = await createContact({
     company_name: "AUDIT_CUSTOMER_FR",
-    type: "customer",
+    roles: ["customer"],
     country_code: country ?? undefined,
     balance_currency: "EUR",
     tax_id: "FR12345678901",
@@ -515,7 +518,7 @@ async function scenario1(n: Notes) {
   // The orders module takes default_supplier in product schema
   const supplier = await createContact({
     company_name: "AUDIT_SUPPLIER_TR",
-    type: "supplier",
+    roles: ["supplier"],
     country_code: undefined,
     balance_currency: "TRY",
   } as Parameters<typeof createContact>[0]);
@@ -1001,6 +1004,7 @@ async function scenario4(n: Notes) {
   const events1: LedgerEvent[] = ledger1.map((r) => ({
     id: r.id,
     date: r.transaction_date,
+    created_time: r.created_time,
     kind: r.kind as LedgerEvent["kind"],
     amount: Number(r.amount),
     currency: r.currency,
@@ -1063,6 +1067,7 @@ async function scenario4(n: Notes) {
   const events2 = (await listLedgerForContactCompat(customerId)).map((r) => ({
     id: r.id,
     date: r.transaction_date,
+    created_time: r.created_time,
     kind: r.kind as LedgerEvent["kind"],
     amount: Number(r.amount),
     currency: r.currency,
@@ -1259,6 +1264,7 @@ async function scenario4(n: Notes) {
   const events3 = (await listLedgerForContactCompat(customerId)).map((r) => ({
     id: r.id,
     date: r.transaction_date,
+    created_time: r.created_time,
     kind: r.kind as LedgerEvent["kind"],
     amount: Number(r.amount),
     currency: r.currency,

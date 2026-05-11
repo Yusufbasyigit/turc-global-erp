@@ -6,11 +6,15 @@ export type LedgerEventKind =
 export type LedgerEvent = {
   id: string;
   date: string;
-  // created_time is the secondary sort key when two events share a
-  // transaction_date. Falls back to id-lex if absent. Without it,
-  // same-day billings sort by random UUID, which can mis-attribute
-  // payments to the wrong bill.
-  created_time?: string | null;
+  // Secondary sort key when two events share a `date`. Required and
+  // non-null: `transactions.created_time` is NOT NULL in Postgres
+  // (`src/types/database.ts:1273`), so every production row carries it.
+  // If the field were optional, two same-day events without it would
+  // fall through to id-lex (UUID) — effectively random — which can
+  // mis-attribute payments to the wrong bill. Mapping sites that
+  // construct a LedgerEvent are the chokepoint; they assert on the
+  // DB row before passing it in.
+  created_time: string;
   kind: LedgerEventKind;
   amount: number;
   currency: string;
@@ -84,6 +88,8 @@ export function effectiveSignedForKind(
   return 0;
 }
 
+import { EPS } from "./eps";
+
 type BillingSlot = {
   event: LedgerEvent;
   billed: number;
@@ -96,9 +102,8 @@ export function allocateFifo(
 ): LedgerAllocationResult {
   const sorted = [...events].sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    const at = a.created_time ?? "";
-    const bt = b.created_time ?? "";
-    if (at !== bt) return at < bt ? -1 : 1;
+    if (a.created_time !== b.created_time)
+      return a.created_time < b.created_time ? -1 : 1;
     if (a.id !== b.id) return a.id < b.id ? -1 : 1;
     return 0;
   });
@@ -106,7 +111,11 @@ export function allocateFifo(
   const skipped: SkippedEvent[] = [];
   const billings: BillingSlot[] = [];
   const paymentAllocations: PaymentAllocationDetail[] = [];
-  let unallocatedCredit = 0;
+  // Prepayments (and any unallocated remainder of a partial payment) sit here
+  // until a billing slot opens. We keep the originating event so the
+  // retroactive-match loop below can still emit payment_allocations entries
+  // linking the prepayment to the billing it funded.
+  const pendingCredits: Array<{ event: LedgerEvent; remaining: number }> = [];
 
   for (const event of sorted) {
     const amt = effectiveAmount(event, displayCurrency);
@@ -127,9 +136,9 @@ export function allocateFifo(
     if (event.kind === "client_payment") {
       let remaining = amt;
       for (const slot of billings) {
-        if (remaining <= 0) break;
+        if (remaining <= EPS) break;
         const capacity = slot.billed - slot.paid;
-        if (capacity <= 0) continue;
+        if (capacity <= EPS) continue;
         const take = Math.min(capacity, remaining);
         slot.paid += take;
         remaining -= take;
@@ -141,18 +150,27 @@ export function allocateFifo(
           allocated_amount: take,
         });
       }
-      if (remaining > 0) unallocatedCredit += remaining;
+      if (remaining > EPS) pendingCredits.push({ event, remaining });
       continue;
     }
 
     if (event.kind === "client_refund") {
       let remaining = amt;
-      const fromCredit = Math.min(remaining, unallocatedCredit);
-      unallocatedCredit -= fromCredit;
-      remaining -= fromCredit;
-      for (let i = billings.length - 1; i >= 0 && remaining > 0; i--) {
-        const slot = billings[i];
-        if (slot.paid <= 0) continue;
+      while (remaining > EPS && pendingCredits.length > 0) {
+        const head = pendingCredits[0];
+        const take = Math.min(head.remaining, remaining);
+        head.remaining -= take;
+        remaining -= take;
+        if (head.remaining <= EPS) pendingCredits.shift();
+      }
+      // Reverse paid billings oldest-first to match the forward FIFO direction:
+      // payments fund the oldest billing first, so a refund reopens the oldest
+      // paid billing first. This keeps outstanding-by-billing a stable function
+      // of (sum of bills, sum of payments minus refunds) regardless of when
+      // the refund landed.
+      for (const slot of billings) {
+        if (remaining <= EPS) break;
+        if (slot.paid <= EPS) continue;
         const take = Math.min(slot.paid, remaining);
         slot.paid -= take;
         remaining -= take;
@@ -163,28 +181,43 @@ export function allocateFifo(
   }
 
   // Retroactive match: a payment that arrived before any billing is parked in
-  // unallocatedCredit. Once a later billing slot opens with paid < billed, drain
-  // the credit into that slot FIFO. Without this, prepayments stay "unallocated"
-  // forever and shipment_allocations[].paid_amount stays 0 even after the
-  // billing arrives.
+  // pendingCredits. Once a later billing slot opens with paid < billed, drain
+  // the oldest credits into that slot FIFO and emit payment_allocations so
+  // downstream views (per-shipment "Payments applied" table, customer
+  // statement PDF) can still attribute the funding back to the prepayment.
   for (const slot of billings) {
-    if (unallocatedCredit <= 0) break;
-    const capacity = slot.billed - slot.paid;
-    if (capacity <= 0) continue;
-    const take = Math.min(capacity, unallocatedCredit);
-    slot.paid += take;
-    unallocatedCredit -= take;
+    while (slot.billed - slot.paid > EPS && pendingCredits.length > 0) {
+      const head = pendingCredits[0];
+      const capacity = slot.billed - slot.paid;
+      const take = Math.min(capacity, head.remaining);
+      slot.paid += take;
+      head.remaining -= take;
+      paymentAllocations.push({
+        payment_event_id: head.event.id,
+        payment_date: head.event.date,
+        shipment_billing_id: slot.event.id,
+        related_shipment_id: slot.event.related_shipment_id!,
+        allocated_amount: take,
+      });
+      if (head.remaining <= EPS) pendingCredits.shift();
+    }
   }
 
+  const unallocatedCredit = pendingCredits.reduce(
+    (s, c) => s + c.remaining,
+    0,
+  );
+
   const shipment_allocations: ShipmentAllocation[] = billings.map((slot) => {
-    const outstanding = Math.max(0, slot.billed - slot.paid);
+    const rawOutstanding = slot.billed - slot.paid;
+    const outstanding = rawOutstanding <= EPS ? 0 : rawOutstanding;
     return {
       shipment_billing_id: slot.event.id,
       related_shipment_id: slot.event.related_shipment_id!,
       billed_amount: slot.billed,
       paid_amount: slot.paid,
       outstanding_amount: outstanding,
-      is_fully_paid: slot.paid >= slot.billed,
+      is_fully_paid: outstanding === 0,
     };
   });
 

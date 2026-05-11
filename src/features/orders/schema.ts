@@ -27,6 +27,30 @@ const optionalNumber = z.preprocess(
     .nullable(),
 );
 
+// Same shape as optionalNumber but rejects zero. Used for line-item prices,
+// where `null` is the legitimate "not yet priced" state but `0` is a data
+// error (the order-mutations.ts inquiry→quoted gate rejects price <= 0, so
+// a 0 here would only surface as a confusing error on advance).
+const optionalPositiveNumber = z.preprocess(
+  (v) => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === "number") {
+      return Number.isFinite(v) ? v : null;
+    }
+    if (typeof v === "string") {
+      const t = v.trim();
+      if (t === "") return null;
+      const n = Number(t);
+      return Number.isFinite(n) ? n : NaN;
+    }
+    return null;
+  },
+  z
+    .number({ error: "Must be a number" })
+    .positive("Must be greater than zero")
+    .nullable(),
+);
+
 const requiredPositive = z.preprocess(
   (v) => {
     if (v === null || v === undefined || v === "") return NaN;
@@ -71,7 +95,7 @@ const optionalId = z.preprocess(
 export const orderLineSchema = z.object({
   product_id: z.string().min(1, "Select a product"),
   quantity: requiredPositive,
-  unit_sales_price: optionalNumber,
+  unit_sales_price: optionalPositiveNumber,
   est_purchase_unit_price: optionalNumber,
   actual_purchase_price: optionalNumber,
   vat_rate: optionalKdv,

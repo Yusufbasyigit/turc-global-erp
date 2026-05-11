@@ -5,6 +5,8 @@
 // Mirrors the contract of `partner-reimbursement-allocation.ts` so behavior
 // is consistent across the app's installment-style ledgers.
 
+import { EPS } from "./eps";
+
 export type RealEstateInstallmentInput = {
   id: string;
   due_date: string;
@@ -37,8 +39,6 @@ export type DealAllocationResult = {
   total_outstanding: number;
   unallocated_payment: number;
 };
-
-const EPS = 0.001;
 
 function sortByDateThenId<T extends { date?: string; due_date?: string; id: string }>(
   rows: T[],
@@ -92,10 +92,14 @@ export function allocateRealEstateInstallments(
     if (slot.outstanding <= EPS) {
       slot.status = "paid";
       slot.outstanding = 0;
+    } else if (slot.due_date < today) {
+      // Overdue takes priority over "partial" so a part-paid installment that
+      // is also past due renders red (delinquent) rather than amber (just
+      // making progress). Without this, the per-installment row in the deal
+      // drawer would hide the late-payment signal.
+      slot.status = "overdue";
     } else if (slot.paid > EPS) {
       slot.status = "partial";
-    } else if (slot.due_date < today) {
-      slot.status = "overdue";
     } else {
       slot.status = "due";
     }

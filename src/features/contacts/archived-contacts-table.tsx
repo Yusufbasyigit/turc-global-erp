@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import type { ContactWithCountry } from "@/lib/supabase/types";
-import { ContactTypeBadge } from "./type-badge";
+import { ContactRoleBadges } from "./role-badges";
 import { CountryFlag } from "./country-flag";
 
 function formatDeletedAt(value: string | null): string {
@@ -39,7 +39,7 @@ export function ArchivedContactsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[110px]">Type</TableHead>
+            <TableHead className="w-[180px]">Roles</TableHead>
             <TableHead>Company</TableHead>
             <TableHead>Contact</TableHead>
             <TableHead>Country</TableHead>
@@ -51,7 +51,7 @@ export function ArchivedContactsTable({
           {contacts.map((c) => (
             <TableRow key={c.id} className="hover:bg-muted/30">
               <TableCell>
-                <ContactTypeBadge type={c.type} />
+                <ContactRoleBadges contact={c} />
               </TableCell>
               <TableCell className="font-medium text-muted-foreground">
                 {c.company_name}

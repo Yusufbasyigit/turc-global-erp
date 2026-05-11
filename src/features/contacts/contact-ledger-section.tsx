@@ -21,6 +21,11 @@ import { LedgerFilters, type LedgerFilterState } from "./ledger-filters";
 import { LedgerHeader } from "./ledger-header";
 
 function toLedgerEvent(row: ContactLedgerRow): LedgerEvent {
+  if (row.created_time === null) {
+    throw new Error(
+      `LedgerEvent ${row.id} is missing created_time (transactions.created_time is NOT NULL in DB).`,
+    );
+  }
   return {
     id: row.id,
     date: row.transaction_date,

@@ -507,6 +507,7 @@ async function case01(): Promise<Result> {
     {
       id: "BILL",
       date: "2026-01-01",
+      created_time: "2026-01-01T00:00:00.000Z",
       kind: "shipment_billing",
       amount: 500,
       currency: "EUR",
@@ -517,6 +518,7 @@ async function case01(): Promise<Result> {
     {
       id: "PAY",
       date: "2026-01-02",
+      created_time: "2026-01-02T00:00:00.000Z",
       kind: "client_payment",
       amount: 80000,
       currency: "JPY",
@@ -1253,6 +1255,7 @@ async function case09(): Promise<Result> {
     {
       id: "B1",
       date: "2026-01-01",
+      created_time: "2026-01-01T00:00:00.000Z",
       kind: "shipment_billing",
       amount: 1000,
       currency: "EUR",
@@ -1263,6 +1266,7 @@ async function case09(): Promise<Result> {
     {
       id: "B2",
       date: "2026-01-02",
+      created_time: "2026-01-02T00:00:00.000Z",
       kind: "shipment_billing",
       amount: 1000,
       currency: "EUR",
@@ -1273,6 +1277,7 @@ async function case09(): Promise<Result> {
     {
       id: "B3",
       date: "2026-01-03",
+      created_time: "2026-01-03T00:00:00.000Z",
       kind: "shipment_billing",
       amount: 1000,
       currency: "EUR",
@@ -1283,6 +1288,7 @@ async function case09(): Promise<Result> {
     {
       id: "P1",
       date: "2026-02-01",
+      created_time: "2026-02-01T00:00:00.000Z",
       kind: "client_payment",
       amount: 2500,
       currency: "EUR",

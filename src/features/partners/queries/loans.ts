@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { istanbulToday } from "@/lib/format-date";
 import type {
   Account,
   CustodyLocation,
@@ -102,20 +103,15 @@ function bucketKey(partnerId: string | null, currency: string): string {
   return `${partnerId ?? ""}__${currency}`;
 }
 
-function todayIso(): string {
-  // Local YYYY-MM-DD; good enough for overdue comparison against due_date.
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 export function computeLoanState(
   loans: LoanWithInstallments[],
   repayments: LoanRepaymentRow[],
 ): LoansSummary {
-  const today = todayIso();
+  // Overdue is a date-only comparison against `installment.due_date`.
+  // It must run in Istanbul time — using host-local or UTC flips the
+  // status across the midnight boundary depending on when the user opens
+  // the page.
+  const today = istanbulToday();
 
   // Group loans + repayments by (partner, currency).
   const loansByBucket = new Map<string, LoanWithInstallments[]>();
@@ -235,8 +231,12 @@ export function computeLoanState(
         const outstanding = Math.max(0, Number(inst.amount) - paid);
         let status: LoanInstallmentStatus;
         if (outstanding <= 0.0001) status = "paid";
-        else if (paid > 0.0001) status = "partial";
+        // Past-due wins over partial-paid so a part-paid loan installment
+        // that is also late renders "overdue" (red) rather than "partial"
+        // (amber). Without this, the partner-loan drawer would hide the
+        // delinquency signal whenever any payment had been made.
         else if (inst.due_date < today) status = "overdue";
+        else if (paid > 0.0001) status = "partial";
         else status = "open";
         states.push({ ...inst, paid_amount: paid, outstanding, status });
       }

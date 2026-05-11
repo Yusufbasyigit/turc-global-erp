@@ -3,11 +3,18 @@ import { AUTH_DISABLED } from "@/lib/auth-mode";
 import type {
   Account,
   AccountInsert,
+  FxSnapshot,
   MovementKind,
   OrtakMovementType,
+  PriceSnapshot,
   TreasuryMovement,
   TreasuryMovementInsert,
 } from "@/lib/supabase/types";
+import { latestByKey } from "./queries";
+import {
+  checkTradePlausibility,
+  formatTradePlausibilityError,
+} from "./trade-plausibility";
 
 async function currentUserId(): Promise<string | null> {
   const supabase = createClient();
@@ -137,7 +144,9 @@ export async function createPairedMovement(input: {
   // A "transfer" moves the same asset between custody locations, so both
   // legs must hold matching currencies and quantities. Without this guard,
   // a USD→EUR transfer silently corrupts SUM(quantity) on both accounts.
-  // "trade" intentionally crosses assets, so the same guard does not apply.
+  // "trade" intentionally crosses assets, so the same guard does not apply —
+  // instead, the trade branch below runs a soft plausibility check against
+  // the latest rate snapshots to catch typos like 100/1 instead of 1000/1.
   if (input.kind === "transfer") {
     const { data: accts, error: acctErr } = await supabase
       .from("accounts")
@@ -154,6 +163,53 @@ export async function createPairedMovement(input: {
     }
     if (Math.abs(input.quantity_from) !== Math.abs(input.quantity_to)) {
       throw new Error("Transfer quantities must match (same asset).");
+    }
+  } else if (input.kind === "trade") {
+    const { data: accts, error: acctErr } = await supabase
+      .from("accounts")
+      .select("id, asset_code, asset_type")
+      .in("id", [input.from_account_id, input.to_account_id]);
+    if (acctErr) throw acctErr;
+    const from = accts?.find((a) => a.id === input.from_account_id);
+    const to = accts?.find((a) => a.id === input.to_account_id);
+    if (!from || !to) throw new Error("Account not found");
+
+    const [{ data: fxRows, error: fxErr }, { data: priceRows, error: priceErr }] =
+      await Promise.all([
+        supabase.from("fx_snapshots").select("*"),
+        supabase.from("price_snapshots").select("*"),
+      ]);
+    if (fxErr) throw fxErr;
+    if (priceErr) throw priceErr;
+    const fxMap = latestByKey(
+      (fxRows ?? []) as FxSnapshot[],
+      (r) => r.currency_code.toUpperCase(),
+      (r) => r.fetched_at,
+    );
+    const priceMap = latestByKey(
+      (priceRows ?? []) as PriceSnapshot[],
+      (r) => r.asset_code,
+      (r) => r.snapshot_date,
+    );
+
+    const verdict = checkTradePlausibility({
+      from: { asset_code: from.asset_code, asset_type: from.asset_type },
+      to: { asset_code: to.asset_code, asset_type: to.asset_type },
+      quantityFrom: input.quantity_from,
+      quantityTo: input.quantity_to,
+      fxMap,
+      priceMap,
+    });
+    if (verdict.status === "blocked") {
+      throw new Error(
+        formatTradePlausibilityError({
+          from: { asset_code: from.asset_code, asset_type: from.asset_type },
+          to: { asset_code: to.asset_code, asset_type: to.asset_type },
+          impliedRate: verdict.impliedRate,
+          expectedRate: verdict.expectedRate,
+          divergence: verdict.divergence,
+        }),
+      );
     }
   }
 

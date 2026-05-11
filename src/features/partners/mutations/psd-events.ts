@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { AUTH_DISABLED } from "@/lib/auth-mode";
 import {
+  assertAccountCurrencyMatches,
   spawnMovementFromTransaction,
 } from "@/features/transactions/mutations";
 import type {
@@ -64,8 +65,9 @@ async function deleteLegMovementAndTransaction(
   transactionId: string,
 ): Promise<void> {
   const supabase = createClient();
-  // Movement is set null on transaction delete via FK ON DELETE SET NULL,
-  // but we want it gone — drop the movement first, then the transaction.
+  // FK is ON DELETE CASCADE (20260511120000), so deleting the transaction
+  // would also clear the movement. Keep the explicit movement delete first
+  // for readability and as belt-and-braces against FK changes.
   const { error: mvErr } = await supabase
     .from("treasury_movements")
     .delete()
@@ -211,6 +213,11 @@ export async function updatePsdEvent(
   const finalLegs: Transaction[] = [];
   for (const leg of input.legs) {
     if (leg.id) {
+      // Same currency guard spawnMovementFromTransaction enforces on create —
+      // without it, switching a leg's source to a different-currency account
+      // would silently dump foreign-currency quantity into the new account's
+      // balance.
+      await assertAccountCurrencyMatches(leg.from_account_id, leg.currency);
       // Update existing leg: amount/currency/from_account/date may change.
       const legUpdate: TransactionUpdate = {
         transaction_date: input.event_date,
@@ -263,8 +270,9 @@ export async function updatePsdEvent(
 export async function deletePsdEvent(id: string): Promise<void> {
   const supabase = createClient();
 
-  // Manually clear movements first — the FK uses ON DELETE SET NULL on
-  // source_transaction_id, but we want to remove the withdraw movements too.
+  // FK is ON DELETE CASCADE (20260511120000) so deleting the transactions
+  // also drops their movements. The explicit per-leg helper makes the
+  // intent visible and keeps the loop safe against future FK changes.
   const { data: legs, error: legsErr } = await supabase
     .from("transactions")
     .select("id")

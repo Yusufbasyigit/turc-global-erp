@@ -1,20 +1,23 @@
 import { createClient } from "@/lib/supabase/client";
 import { AUTH_DISABLED } from "@/lib/auth-mode";
 import { TRANSACTION_ATTACHMENT_BUCKET } from "@/lib/constants";
-import type {
-  ExpenseType,
-  ExpenseTypeInsert,
-  OrtakMovementType,
-  Partner,
-  PartnerInsert,
-  Transaction,
-  TransactionInsert,
-  TransactionUpdate,
-  TreasuryMovement,
-  TreasuryMovementInsert,
-  TreasuryMovementUpdate,
+import {
+  DISABLED_KINDS,
+  type ExpenseType,
+  type ExpenseTypeInsert,
+  type OrtakMovementType,
+  type Partner,
+  type PartnerInsert,
+  type Transaction,
+  type TransactionInsert,
+  type TransactionUpdate,
+  type TreasuryMovement,
+  type TreasuryMovementInsert,
+  type TreasuryMovementUpdate,
 } from "@/lib/supabase/types";
 import { KIND_SPAWN_DIRECTION } from "./constants";
+
+const DISABLED_KIND_SET = new Set<string>(DISABLED_KINDS);
 
 async function currentUserId(): Promise<string | null> {
   const supabase = createClient();
@@ -52,7 +55,7 @@ async function custodyRequiresMovementType(
 // against a TRY-denominated account. The treasury balance is a pure SUM(quantity)
 // across an account, so adding a non-matching-currency amount silently corrupts
 // the balance with no visible error until reconciliation.
-async function assertAccountCurrencyMatches(
+export async function assertAccountCurrencyMatches(
   accountId: string,
   currency: string,
 ): Promise<void> {
@@ -292,6 +295,69 @@ export async function createTransaction(input: {
   }
 }
 
+// Frozen-FX invariant: `fx_converted_amount` is the single source of truth
+// downstream readers (fifo-allocation's effectiveAmount) consult to value a
+// payment in the customer's balance currency. If a user edits `amount` or
+// any FX-defining field, the stored converted amount silently goes stale and
+// FIFO trusts a wrong number. The form's useEffect handles this for UI
+// callers; this helper closes the same loop server-side so non-form callers
+// (scripts, future server actions, programmatic edits) can't bypass it.
+//
+// Pure: takes the existing row's FX-relevant fields and the incoming update
+// payload, returns the patched payload. Reading the existing row stays
+// outside so the helper can be unit-tested without Supabase.
+type ExistingFxState = {
+  amount: number | string;
+  currency: string;
+  fx_rate_applied: number | string | null;
+  fx_target_currency: string | null;
+};
+
+export function reconcileFxConvertedAmount(
+  existing: ExistingFxState,
+  payload: TransactionUpdate,
+): TransactionUpdate {
+  const touchesFx =
+    "amount" in payload ||
+    "currency" in payload ||
+    "fx_rate_applied" in payload ||
+    "fx_target_currency" in payload;
+  if (!touchesFx) return payload;
+
+  const nextAmount =
+    "amount" in payload && payload.amount !== undefined && payload.amount !== null
+      ? Number(payload.amount)
+      : Number(existing.amount);
+  const nextRate =
+    "fx_rate_applied" in payload
+      ? payload.fx_rate_applied == null
+        ? null
+        : Number(payload.fx_rate_applied)
+      : existing.fx_rate_applied == null
+        ? null
+        : Number(existing.fx_rate_applied);
+  const nextTarget =
+    "fx_target_currency" in payload
+      ? payload.fx_target_currency ?? null
+      : existing.fx_target_currency ?? null;
+
+  let nextConverted: number | null;
+  if (
+    nextRate == null ||
+    nextTarget == null ||
+    !Number.isFinite(nextAmount) ||
+    nextAmount <= 0 ||
+    !Number.isFinite(nextRate) ||
+    nextRate <= 0
+  ) {
+    nextConverted = null;
+  } else {
+    nextConverted = nextAmount * nextRate;
+  }
+
+  return { ...payload, fx_converted_amount: nextConverted };
+}
+
 export async function updateTransaction(input: {
   id: string;
   payload: Omit<TransactionUpdate, "id" | "created_by" | "created_time" | "edited_by" | "edited_time">;
@@ -303,6 +369,33 @@ export async function updateTransaction(input: {
   const userId = await currentUserId();
   const now = new Date().toISOString();
 
+  // Read the existing row once for the disabled-kind guard, the
+  // supplier_invoice currency/contact/kind guard, AND the FX recompute
+  // invariant (frozen-FX contract — see reconcileFxConvertedAmount).
+  const { data: existing, error: existingErr } = await supabase
+    .from("transactions")
+    .select(
+      "kind, currency, contact_id, amount, fx_rate_applied, fx_target_currency",
+    )
+    .eq("id", input.id)
+    .maybeSingle();
+  if (existingErr) throw existingErr;
+
+  // Defense-in-depth against bypass of the transactions-index edit redirect.
+  // shipment_billing / shipment_cogs / shipment_freight rows are owned by
+  // refreshShipmentAccruals (src/features/shipments/billing.ts); profit_distribution
+  // legs are owned by createPsdEvent/updatePsdEvent. The wizard form has no UI
+  // for the accrual-specific fields, and a wizard write here would silently
+  // corrupt the linked shipment or PSD event. The redirect in
+  // transactions-index.tsx routes these kinds away from the form, but any
+  // future caller that bypasses it (URL prefill change, programmatic edit,
+  // refactor) must fail loudly instead.
+  if (existing && DISABLED_KIND_SET.has(existing.kind)) {
+    throw new Error(
+      `Cannot edit a ${existing.kind} row through the transactions form: this row is managed by its owning module (shipments or partner profit distribution). Edit it from the shipment or partners page instead.`,
+    );
+  }
+
   if (input.payload.related_payable_id) {
     await validateRelatedPayable({
       related_payable_id: input.payload.related_payable_id,
@@ -310,6 +403,41 @@ export async function updateTransaction(input: {
       kind: (input.payload.kind ?? "supplier_payment") as TransactionInsert["kind"],
       currency: input.payload.currency ?? undefined,
     });
+  }
+
+  // Mirror the payment-side validateRelatedPayable check on the invoice side:
+  // if this transaction has supplier_payment children pointing at it via
+  // related_payable_id, block currency/contact/kind edits that would silently
+  // desync them. computeOutstandingByInvoice sums payment.amount currency-blind,
+  // so a EUR invoice with a EUR payment that's then flipped to USD would show
+  // outstanding = 1000 - 500 = 500 across mixed currencies.
+  const isCurrencyChanging =
+    "currency" in input.payload && input.payload.currency !== undefined;
+  const isContactChanging =
+    "contact_id" in input.payload && input.payload.contact_id !== undefined;
+  const isKindChanging =
+    "kind" in input.payload && input.payload.kind !== undefined;
+  if (isCurrencyChanging || isContactChanging || isKindChanging) {
+    if (existing && existing.kind === "supplier_invoice") {
+      const currencyShift =
+        isCurrencyChanging && existing.currency !== input.payload.currency;
+      const contactShift =
+        isContactChanging && existing.contact_id !== input.payload.contact_id;
+      const kindShift =
+        isKindChanging && existing.kind !== input.payload.kind;
+      if (currencyShift || contactShift || kindShift) {
+        const { count, error: pErr } = await supabase
+          .from("transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("related_payable_id", input.id);
+        if (pErr) throw pErr;
+        if ((count ?? 0) > 0) {
+          throw new Error(
+            `Cannot change ${currencyShift ? "currency" : contactShift ? "contact" : "kind"} on this supplier invoice: ${count} payment(s) link to it. Detach those payments first.`,
+          );
+        }
+      }
+    }
   }
 
   let nextAttachmentPath: string | null | undefined = undefined;
@@ -326,8 +454,12 @@ export async function updateTransaction(input: {
     nextAttachmentPath = newPath;
   }
 
+  const reconciledPayload = existing
+    ? reconcileFxConvertedAmount(existing, input.payload)
+    : input.payload;
+
   const updatePayload: TransactionUpdate = {
-    ...input.payload,
+    ...reconciledPayload,
     ...(nextAttachmentPath !== undefined
       ? { attachment_path: nextAttachmentPath }
       : {}),

@@ -80,11 +80,21 @@ function ShipmentManifestTableImpl({ shipmentId, invoiceCurrency }: Props) {
   const totals = lines.reduce(
     (acc, l) => {
       acc.qtyLines += 1;
-      acc.cbm += l.cbm;
-      acc.weightKg += l.weightKg;
+      // Cancelled lines aren't physically on this shipment (their order's
+      // shipment_id was cleared on cancellation; the status === "cancelled"
+      // branch is defensive against historical rows). Exclude them from
+      // CBM/weight so the container-fill totals reflect only goods actually
+      // loaded. Rolled-over lines DO load here — only their billing went to
+      // another shipment — so they still contribute to physical totals.
+      // The Goods column independently excludes rolled-over via lineTotal=null
+      // because that column is denominated in this shipment's billing.
+      if (l.status !== "cancelled") {
+        acc.cbm += l.cbm;
+        acc.weightKg += l.weightKg;
+        if (l.missingDimensions) acc.missingDims += 1;
+        if (l.missingWeight) acc.missingWt += 1;
+      }
       if (l.lineTotal !== null) acc.goods += l.lineTotal;
-      if (l.missingDimensions) acc.missingDims += 1;
-      if (l.missingWeight) acc.missingWt += 1;
       return acc;
     },
     { qtyLines: 0, cbm: 0, weightKg: 0, goods: 0, missingDims: 0, missingWt: 0 },

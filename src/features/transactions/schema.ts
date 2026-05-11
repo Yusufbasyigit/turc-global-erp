@@ -76,7 +76,11 @@ export const transactionSchema = z
     z.object({
       kind: z.literal("client_refund"),
       contact_id: requiredString("Pick a customer"),
+      contact_balance_currency: z.string().optional().default(""),
       from_account_id: requiredString("Pick a source account"),
+      fx_rate_applied: optionalPositiveNumber,
+      fx_target_currency: z.string().optional().default(""),
+      fx_converted_amount: optionalPositiveNumber,
       ...commonFields,
     }),
     // WAVE 1 — expense
@@ -150,7 +154,7 @@ export const transactionSchema = z
     }),
   ])
   .superRefine((v, ctx) => {
-    if (v.kind === "client_payment") {
+    if (v.kind === "client_payment" || v.kind === "client_refund") {
       const needsFx =
         v.contact_balance_currency &&
         v.contact_balance_currency !== v.currency;

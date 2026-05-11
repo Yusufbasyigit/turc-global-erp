@@ -227,9 +227,10 @@ export async function markOccurrencePaid(
     .single();
   if (occErr) {
     // Roll back the transaction + its movement to keep state consistent.
-    // The treasury_movements.source_transaction_id FK is SET NULL on delete
-    // (not CASCADE), so deleting the transaction would leave an orphaned
-    // movement row that still affects accrual. Delete the movement first.
+    // The FK is ON DELETE CASCADE since 20260511120000, so deleting the
+    // transaction would also clear the movement; the explicit movement
+    // delete is kept as belt-and-braces and to make the rollback obvious
+    // when reading the code.
     await supabase
       .from("treasury_movements")
       .delete()
@@ -270,8 +271,8 @@ export async function skipOccurrence(input: {
 }
 
 // Undo a resolved occurrence. For paid: deletes the linked transaction
-// (and its spawned movement via the FK cascade in transactions feature)
-// then deletes the occurrence row. For skipped: just deletes the row.
+// (the FK cascade also removes the spawned treasury_movement) then deletes
+// the occurrence row. For skipped: just deletes the row.
 export async function undoOccurrence(occurrenceId: string): Promise<void> {
   const supabase = createClient();
 
@@ -284,10 +285,10 @@ export async function undoOccurrence(occurrenceId: string): Promise<void> {
   if (!occ) return;
 
   if (occ.status === "paid" && occ.transaction_id) {
-    // Delete the spawned transaction. Treasury movements that reference it
-    // via source_transaction_id are SET NULL on delete (per the existing
-    // FK), but the actual quantity rows for accrual remain — we want them
-    // gone, so delete the movement first if it exists.
+    // Delete the spawned transaction. The FK is ON DELETE CASCADE
+    // (20260511120000) so the linked treasury_movement is also removed;
+    // we delete the movement first explicitly to keep the intent visible
+    // and to be robust against future changes to the FK.
     await supabase
       .from("treasury_movements")
       .delete()

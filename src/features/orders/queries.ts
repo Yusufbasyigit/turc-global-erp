@@ -22,6 +22,12 @@ export const orderKeys = {
   customers: () => [...orderKeys.all, "customers"] as const,
 };
 
+// Embedded `customer:` / `supplier:` joins intentionally do NOT filter
+// `deleted_at` — historical orders keep the soft-deleted customer/supplier
+// row attached so the list page still shows their name. Pickers that build
+// NEW orders filter `.is("deleted_at", null)` on the contact list directly
+// (see listCustomerContacts below and src/features/products/queries.ts:80
+// for the supplier picker).
 const ORDER_LIST_SELECT = `
   *,
   customer:contacts!orders_customer_id_fkey(id, company_name, balance_currency),
@@ -202,7 +208,7 @@ export async function listCustomerContacts(): Promise<CustomerSummary[]> {
   const { data, error } = await supabase
     .from("contacts")
     .select("id, company_name, balance_currency")
-    .eq("type", "customer")
+    .eq("is_customer", true)
     .is("deleted_at", null)
     .order("company_name", { ascending: true });
   if (error) throw error;

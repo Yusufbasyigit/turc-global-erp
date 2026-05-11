@@ -119,6 +119,29 @@ export async function updateDeal(
   const userId = await currentUserId();
   const now = new Date().toISOString();
 
+  // Switching currency on a deal that already has receipts mixes currencies
+  // in allocateRealEstateInstallments (it sums numbers across all receipts
+  // currency-blind). The display would show e.g. "5000 USD paid" when the
+  // customer actually paid 5000 EUR. Block it.
+  const { data: existingDeal, error: existingErr } = await supabase
+    .from("real_estate_deals")
+    .select("currency")
+    .eq("id", input.id)
+    .maybeSingle();
+  if (existingErr) throw existingErr;
+  if (existingDeal && existingDeal.currency !== input.currency) {
+    const { count, error: rxErr } = await supabase
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("real_estate_deal_id", input.id);
+    if (rxErr) throw rxErr;
+    if ((count ?? 0) > 0) {
+      throw new Error(
+        `Cannot change deal currency from ${existingDeal.currency} to ${input.currency}: ${count} receipt(s) already exist in the original currency. Detach those receipts first.`,
+      );
+    }
+  }
+
   const { data: deal, error } = await supabase
     .from("real_estate_deals")
     .update({
