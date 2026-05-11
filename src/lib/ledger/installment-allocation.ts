@@ -5,6 +5,8 @@
 // Mirrors the contract of `partner-reimbursement-allocation.ts` so behavior
 // is consistent across the app's installment-style ledgers.
 
+import { EPS } from "./eps";
+
 export type RealEstateInstallmentInput = {
   id: string;
   due_date: string;
@@ -37,8 +39,6 @@ export type DealAllocationResult = {
   total_outstanding: number;
   unallocated_payment: number;
 };
-
-const EPS = 0.001;
 
 function sortByDateThenId<T extends { date?: string; due_date?: string; id: string }>(
   rows: T[],

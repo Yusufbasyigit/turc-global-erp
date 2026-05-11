@@ -1,3 +1,5 @@
+import { EPS } from "./eps";
+
 export type ReimbursementClaim = {
   id: string;
   date: string;
@@ -34,13 +36,6 @@ export type CurrencyBucket = {
 export type PartnerReimbursementResult = {
   by_currency: Record<string, CurrencyBucket>;
 };
-
-// Matches the EPS in `installment-allocation.ts`. Without it, a series of
-// payouts whose decimals don't divide evenly into the claim (e.g. three 33.33
-// payouts against 100) leaves a sub-cent residue that keeps `is_fully_settled`
-// false and re-surfaces the claim in the pending list even though the operator
-// sees `$0.00 outstanding`.
-const EPS = 0.001;
 
 function sortByDateThenId<
   T extends { date: string; id: string },

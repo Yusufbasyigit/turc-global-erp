@@ -104,6 +104,8 @@ export function formatQuantity(value: number): string {
   return fmt.format(value);
 }
 
+// Thin alias kept for the treasury module's existing imports. Prefer
+// `istanbulToday` from `@/lib/format-date` in new code.
 export function todayDateString(): string {
   return todayIsoDate();
 }

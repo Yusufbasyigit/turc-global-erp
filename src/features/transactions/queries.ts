@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { TRANSACTION_ATTACHMENT_BUCKET } from "@/lib/constants";
+import { EPS } from "@/lib/ledger/eps";
 import type {
   Account,
   Contact,
@@ -101,6 +102,12 @@ export async function listTransactionsForContact(
   return (data ?? []) as unknown as ContactLedgerRow[];
 }
 
+// Embedded `contacts:` / `partners:` / `from_account:` / `to_account:` joins
+// intentionally do NOT filter `deleted_at` — historical transactions keep
+// the soft-deleted counterparty / account row attached so the list still
+// renders their name. New-transaction pickers filter `deleted_at` on the
+// contact/partner/account lists separately (see listSupplierContacts below,
+// listPartners, and listAccountsWithCustody in features/treasury/queries.ts).
 const TRANSACTION_SELECT = `
   *,
   contacts:contacts!transactions_contact_id_fkey(id, company_name, balance_currency, is_customer, is_supplier, is_logistics, is_real_estate, is_other),
@@ -271,7 +278,13 @@ export function computeOutstandingByInvoice(
   const outstanding = new Map<string, number>();
   for (const inv of invoices) {
     const paid = paidByInvoice.get(inv.id) ?? 0;
-    outstanding.set(inv.id, Number(inv.amount) - paid);
+    const raw = Number(inv.amount) - paid;
+    // EPS-tolerant zeroing, same contract as the FIFO / installment /
+    // partner-reimbursement allocators (`src/lib/ledger/eps.ts`). Three
+    // 33.33 + 33.33 + 33.34 payments against a 100 invoice produce a
+    // sub-cent residue (~1e-15) that would otherwise render an "open"
+    // badge alongside `$0.00 outstanding`.
+    outstanding.set(inv.id, Math.abs(raw) <= EPS ? 0 : raw);
   }
   return outstanding;
 }
@@ -327,8 +340,9 @@ export async function listUnpaidSupplierInvoices(
   const merged: UnpaidSupplierInvoice[] = [];
   for (const inv of invoiceRows) {
     const paid = paymentsById.get(inv.id) ?? 0;
-    const outstanding = Number(inv.amount) - paid;
-    const shouldInclude = outstanding > 0 || inv.id === includeInvoiceId;
+    const raw = Number(inv.amount) - paid;
+    const outstanding = Math.abs(raw) <= EPS ? 0 : raw;
+    const shouldInclude = outstanding > EPS || inv.id === includeInvoiceId;
     if (!shouldInclude) continue;
     merged.push({
       id: inv.id,
@@ -352,13 +366,14 @@ export async function listUnpaidSupplierInvoices(
     if (extraErr) throw extraErr;
     if (extra && extra.contact_id === supplierId) {
       const paid = paymentsById.get(extra.id) ?? 0;
+      const raw = Number(extra.amount) - paid;
       merged.push({
         id: extra.id,
         reference_number: extra.reference_number,
         transaction_date: extra.transaction_date,
         amount: Number(extra.amount),
         currency: extra.currency,
-        outstanding: Number(extra.amount) - paid,
+        outstanding: Math.abs(raw) <= EPS ? 0 : raw,
       });
     }
   }
