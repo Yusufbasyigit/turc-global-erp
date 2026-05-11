@@ -1,4 +1,4 @@
-import { formatDateOnly, parseDateLocal } from "./format-date";
+import { formatDateOnly, istanbulToday, parseDateLocal } from "./format-date";
 
 let passed = 0;
 let failed = 0;
@@ -78,6 +78,44 @@ section("7. formatDateOnly: returns a non-empty string for a valid ISO date");
   // be a non-empty string that mentions the year.
   assertEq("non-empty", out.length > 0, true);
   assertEq("contains 2026", out.includes("2026"), true);
+}
+
+section("8. istanbulToday: 21:00 UTC Apr 30 -> 2026-05-01 in Istanbul (+03:00)");
+{
+  // 2026-04-30T21:00:00Z. UTC slice would give "2026-04-30", but Istanbul
+  // is already 00:00 on May 1. The helper must return tomorrow's date.
+  const d = new Date(Date.UTC(2026, 3, 30, 21, 0, 0));
+  assertEq("rolls forward at IST midnight", istanbulToday(d), "2026-05-01");
+}
+
+section("9. istanbulToday: 22:30 UTC Apr 30 -> 2026-05-01 (well after IST midnight)");
+{
+  const d = new Date(Date.UTC(2026, 3, 30, 22, 30, 0));
+  assertEq("after midnight IST", istanbulToday(d), "2026-05-01");
+}
+
+section("10. istanbulToday: 20:59 UTC Apr 30 -> 2026-04-30 (one minute before IST midnight)");
+{
+  // 23:59 Istanbul time. UTC slice and istanbulToday agree here.
+  const d = new Date(Date.UTC(2026, 3, 30, 20, 59, 0));
+  assertEq("before midnight IST", istanbulToday(d), "2026-04-30");
+}
+
+section("11. istanbulToday: 02:00 UTC Jan 1 -> 2026-01-01 (5:00 IST, well into the day)");
+{
+  // At 02:00 UTC, UTC slice gives Jan 1 and IST is also Jan 1. Sanity check
+  // that the helper doesn't accidentally subtract the offset.
+  const d = new Date(Date.UTC(2026, 0, 1, 2, 0, 0));
+  assertEq("morning IST same day", istanbulToday(d), "2026-01-01");
+}
+
+section("12. istanbulToday: format is exactly YYYY-MM-DD (en-CA contract)");
+{
+  const d = new Date(Date.UTC(2026, 0, 5, 12, 0, 0));
+  const out = istanbulToday(d);
+  assertEq("ten-char string", out.length, 10);
+  assertEq("dashes at 4 and 7", `${out[4]}${out[7]}`, "--");
+  assertEq("parsable", /^\d{4}-\d{2}-\d{2}$/.test(out), true);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { istanbulToday } from "@/lib/format-date";
 import type {
   Account,
   CustodyLocation,
@@ -102,20 +103,15 @@ function bucketKey(partnerId: string | null, currency: string): string {
   return `${partnerId ?? ""}__${currency}`;
 }
 
-function todayIso(): string {
-  // Local YYYY-MM-DD; good enough for overdue comparison against due_date.
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 export function computeLoanState(
   loans: LoanWithInstallments[],
   repayments: LoanRepaymentRow[],
 ): LoansSummary {
-  const today = todayIso();
+  // Overdue is a date-only comparison against `installment.due_date`.
+  // It must run in Istanbul time — using host-local or UTC flips the
+  // status across the midnight boundary depending on when the user opens
+  // the page.
+  const today = istanbulToday();
 
   // Group loans + repayments by (partner, currency).
   const loansByBucket = new Map<string, LoanWithInstallments[]>();

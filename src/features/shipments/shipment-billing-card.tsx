@@ -29,6 +29,15 @@ function formatMoney(n: number): string {
 }
 
 function toLedgerEvent(row: ContactLedgerRow): LedgerEvent {
+  // `transactions.created_time` is NOT NULL in Postgres — but the
+  // generated `ContactLedgerRow` type widens it to `string | null`
+  // because the SELECT alias loses the column's nullability. Assert
+  // here so the FIFO sort's secondary key is always populated.
+  if (row.created_time === null) {
+    throw new Error(
+      `LedgerEvent ${row.id} is missing created_time (transactions.created_time is NOT NULL in DB).`,
+    );
+  }
   return {
     id: row.id,
     date: row.transaction_date,

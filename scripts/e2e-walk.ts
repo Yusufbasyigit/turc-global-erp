@@ -143,6 +143,7 @@ async function listLedgerForContactCompat(contactId: string): Promise<
   Array<{
     id: string;
     transaction_date: string;
+    created_time: string;
     kind: string;
     amount: number;
     currency: string;
@@ -196,6 +197,7 @@ async function listLedgerForContactCompat(contactId: string): Promise<
     return (data ?? []).map((r) => ({
       id: r.id,
       transaction_date: r.transaction_date,
+      created_time: r.created_time,
       kind: r.kind,
       amount: Number(r.amount),
       currency: r.currency,
@@ -316,6 +318,7 @@ async function assembleStatementCompat(shipmentId: string) {
     const events: LedgerEvent[] = ledger.map((r) => ({
       id: r.id,
       date: r.transaction_date,
+      created_time: r.created_time,
       kind: r.kind as LedgerEvent["kind"],
       amount: Number(r.amount),
       currency: r.currency,
@@ -1001,6 +1004,7 @@ async function scenario4(n: Notes) {
   const events1: LedgerEvent[] = ledger1.map((r) => ({
     id: r.id,
     date: r.transaction_date,
+    created_time: r.created_time,
     kind: r.kind as LedgerEvent["kind"],
     amount: Number(r.amount),
     currency: r.currency,
@@ -1063,6 +1067,7 @@ async function scenario4(n: Notes) {
   const events2 = (await listLedgerForContactCompat(customerId)).map((r) => ({
     id: r.id,
     date: r.transaction_date,
+    created_time: r.created_time,
     kind: r.kind as LedgerEvent["kind"],
     amount: Number(r.amount),
     currency: r.currency,
@@ -1259,6 +1264,7 @@ async function scenario4(n: Notes) {
   const events3 = (await listLedgerForContactCompat(customerId)).map((r) => ({
     id: r.id,
     date: r.transaction_date,
+    created_time: r.created_time,
     kind: r.kind as LedgerEvent["kind"],
     amount: Number(r.amount),
     currency: r.currency,

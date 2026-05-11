@@ -4,6 +4,25 @@
 // keeps the value anchored to the user's local day.
 const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+// Canonical "today in Istanbul" as a YYYY-MM-DD string. All overdue,
+// due-today, and stuck-order predicates in the app must derive their
+// `today` from this helper — anything else (UTC slice, host-local
+// `getDate()`) flips status on refresh around the Istanbul midnight
+// boundary. The `en-CA` locale is the trick: it formats dates as
+// `YYYY-MM-DD` so we can compare with date strings out of the DB
+// without re-parsing. The formatter is cached because this is called
+// per render across hundreds of ledger rows.
+const ISTANBUL_TODAY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Istanbul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+export function istanbulToday(date: Date = new Date()): string {
+  return ISTANBUL_TODAY_FORMATTER.format(date);
+}
+
 export function parseDateLocal(value: string): Date | null {
   const m = DATE_ONLY_RE.exec(value);
   if (!m) {

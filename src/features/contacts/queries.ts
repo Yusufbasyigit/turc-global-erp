@@ -181,18 +181,25 @@ export async function listContactBalances(): Promise<ContactBalance[]> {
           r.kind === "client_payment" ||
           r.kind === "client_refund",
       )
-      .map((r) => ({
-        id: r.id,
-        date: r.transaction_date,
-        created_time: r.created_time,
-        kind: r.kind as LedgerEvent["kind"],
-        amount: Number(r.amount),
-        currency: r.currency,
-        related_shipment_id: r.related_shipment_id,
-        fx_converted_amount:
-          r.fx_converted_amount === null ? null : Number(r.fx_converted_amount),
-        fx_target_currency: r.fx_target_currency,
-      }));
+      .map((r) => {
+        if (r.created_time === null) {
+          throw new Error(
+            `LedgerEvent ${r.id} is missing created_time (transactions.created_time is NOT NULL in DB).`,
+          );
+        }
+        return {
+          id: r.id,
+          date: r.transaction_date,
+          created_time: r.created_time,
+          kind: r.kind as LedgerEvent["kind"],
+          amount: Number(r.amount),
+          currency: r.currency,
+          related_shipment_id: r.related_shipment_id,
+          fx_converted_amount:
+            r.fx_converted_amount === null ? null : Number(r.fx_converted_amount),
+          fx_target_currency: r.fx_target_currency,
+        };
+      });
 
     if (events.length === 0) {
       out.push({

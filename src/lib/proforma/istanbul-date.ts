@@ -1,9 +1,4 @@
-const ISTANBUL_FORMATTER = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Europe/Istanbul",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+import { istanbulToday } from "@/lib/format-date";
 
 const ISTANBUL_MONTH_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Europe/Istanbul",
@@ -12,7 +7,7 @@ const ISTANBUL_MONTH_FORMATTER = new Intl.DateTimeFormat("en-CA", {
 });
 
 export function istanbulYYYYMMDD(date: Date = new Date()): string {
-  return ISTANBUL_FORMATTER.format(date).replace(/-/g, "");
+  return istanbulToday(date).replace(/-/g, "");
 }
 
 export function formatOfferDateShort(iso: string | null | undefined): string {
@@ -22,14 +17,18 @@ export function formatOfferDateShort(iso: string | null | undefined): string {
   return `${d}.${m}.${y}`;
 }
 
+// Thin alias kept for the proforma module's existing imports. Prefer
+// `istanbulToday` from `@/lib/format-date` in new code — both return the
+// same string; this just routes through the single canonical helper so
+// the Istanbul-TZ contract lives in one place.
 export function todayIsoDate(): string {
-  return ISTANBUL_FORMATTER.format(new Date());
+  return istanbulToday();
 }
 
 export function addDaysIso(iso: string, days: number): string {
   const d = new Date(`${iso}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
-  return ISTANBUL_FORMATTER.format(d);
+  return istanbulToday(d);
 }
 
 export function istanbulYearMonth(date: Date | string): string {

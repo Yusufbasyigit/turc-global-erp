@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { AUTH_DISABLED } from "@/lib/auth-mode";
+import { istanbulToday } from "@/lib/format-date";
 import type {
   Shipment,
   ShipmentStatus,
@@ -183,7 +184,11 @@ export async function writeShipmentAccruals(args: {
   const sales = computeSalesTotal(lines);
   const cogs = computeCogsTotal(lines);
   const freight = Number(shipment.freight_cost ?? 0);
-  const today = args.now.slice(0, 10);
+  // `args.now` is a full UTC ISO timestamp used for the audit columns
+  // (`created_time` / `edited_time`). The `transaction_date` column is a
+  // date-only Istanbul-anchored value — slicing UTC would post late-night
+  // bookings to yesterday's ledger.
+  const today = istanbulToday();
 
   if (sales <= 0) {
     throw new Error(
@@ -367,7 +372,7 @@ export async function refreshShipmentAccruals(shipmentId: string): Promise<{
 
   const userId = await currentUserId();
   const now = new Date().toISOString();
-  const today = now.slice(0, 10);
+  const today = istanbulToday();
 
   const lines = await fetchShipmentLines(shipmentId);
   const sales = computeSalesTotal(lines);
@@ -468,7 +473,7 @@ export async function refreshAccrualsForShipmentTransition(args: {
 }> {
   const supabase = createClient();
   const shipment = await loadShipmentForBilling(args.shipmentId);
-  const today = args.now.slice(0, 10);
+  const today = istanbulToday();
 
   const lines = await fetchShipmentLines(args.shipmentId);
   const sales = computeSalesTotal(lines);

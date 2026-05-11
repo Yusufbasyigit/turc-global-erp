@@ -9,18 +9,7 @@ import {
   shiftYearMonth,
   todayIsoDate,
 } from "@/lib/proforma/istanbul-date";
-
-const ISTANBUL_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Europe/Istanbul",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function istanbulDateFor(now: Date): string {
-  return ISTANBUL_DATE_FORMATTER.format(now);
-}
-import { parseDateLocal } from "@/lib/format-date";
+import { istanbulToday, parseDateLocal } from "@/lib/format-date";
 import { formatCurrency } from "@/lib/format-money";
 import type { KdvMonth } from "@/lib/ledger/kdv-summary";
 import type { ShipmentListRow } from "@/features/shipments/queries";
@@ -87,7 +76,7 @@ export function kdvUnfiledRule(
   now: Date = new Date(),
 ): AttentionItem[] {
   const currentPeriod = istanbulYearMonth(now);
-  const today = istanbulDateFor(now);
+  const today = istanbulToday(now);
   const items: AttentionItem[] = [];
   for (const p of periods) {
     if (p.period === currentPeriod) continue;

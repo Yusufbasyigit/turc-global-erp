@@ -198,18 +198,25 @@ export async function assembleShipmentStatementData(
     Math.abs(Number(billingTxn.amount) - Number(liveTotal)) >= 0.005;
 
   const ledgerRows = await listTransactionsForContact(s.customer_id);
-  const events: LedgerEvent[] = ledgerRows.map((row) => ({
-    id: row.id,
-    date: row.transaction_date,
-    created_time: row.created_time,
-    kind: row.kind as LedgerEvent["kind"],
-    amount: Number(row.amount),
-    currency: row.currency,
-    related_shipment_id: row.related_shipment_id,
-    fx_converted_amount:
-      row.fx_converted_amount === null ? null : Number(row.fx_converted_amount),
-    fx_target_currency: row.fx_target_currency,
-  }));
+  const events: LedgerEvent[] = ledgerRows.map((row) => {
+    if (row.created_time === null) {
+      throw new Error(
+        `LedgerEvent ${row.id} is missing created_time (transactions.created_time is NOT NULL in DB).`,
+      );
+    }
+    return {
+      id: row.id,
+      date: row.transaction_date,
+      created_time: row.created_time,
+      kind: row.kind as LedgerEvent["kind"],
+      amount: Number(row.amount),
+      currency: row.currency,
+      related_shipment_id: row.related_shipment_id,
+      fx_converted_amount:
+        row.fx_converted_amount === null ? null : Number(row.fx_converted_amount),
+      fx_target_currency: row.fx_target_currency,
+    };
+  });
 
   const fifo = allocateFifo(events, currency);
 

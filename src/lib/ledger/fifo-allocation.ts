@@ -6,11 +6,15 @@ export type LedgerEventKind =
 export type LedgerEvent = {
   id: string;
   date: string;
-  // created_time is the secondary sort key when two events share a
-  // transaction_date. Falls back to id-lex if absent. Without it,
-  // same-day billings sort by random UUID, which can mis-attribute
-  // payments to the wrong bill.
-  created_time?: string | null;
+  // Secondary sort key when two events share a `date`. Required and
+  // non-null: `transactions.created_time` is NOT NULL in Postgres
+  // (`src/types/database.ts:1273`), so every production row carries it.
+  // If the field were optional, two same-day events without it would
+  // fall through to id-lex (UUID) — effectively random — which can
+  // mis-attribute payments to the wrong bill. Mapping sites that
+  // construct a LedgerEvent are the chokepoint; they assert on the
+  // DB row before passing it in.
+  created_time: string;
   kind: LedgerEventKind;
   amount: number;
   currency: string;
@@ -84,18 +88,13 @@ export function effectiveSignedForKind(
   return 0;
 }
 
+import { EPS } from "./eps";
+
 type BillingSlot = {
   event: LedgerEvent;
   billed: number;
   paid: number;
 };
-
-// Matches the EPS in `partner-reimbursement-allocation.ts` and
-// `installment-allocation.ts`. Without it, fractional payments (e.g. three
-// 33.333… payments against a 100 billing, or three FX-converted amounts that
-// don't divide evenly) leave a sub-cent residue that keeps `is_fully_paid`
-// false and renders an "open" badge alongside `$0.00 outstanding`.
-const EPS = 0.001;
 
 export function allocateFifo(
   events: LedgerEvent[],
@@ -103,9 +102,8 @@ export function allocateFifo(
 ): LedgerAllocationResult {
   const sorted = [...events].sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    const at = a.created_time ?? "";
-    const bt = b.created_time ?? "";
-    if (at !== bt) return at < bt ? -1 : 1;
+    if (a.created_time !== b.created_time)
+      return a.created_time < b.created_time ? -1 : 1;
     if (a.id !== b.id) return a.id < b.id ? -1 : 1;
     return 0;
   });
