@@ -48,6 +48,7 @@ import {
 import { Combobox } from "@/components/ui/combobox";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format-money";
+import { splitVat } from "@/lib/ledger/vat-split";
 import {
   ACCEPTED_TRANSACTION_ATTACHMENT_TYPES,
   MAX_TRANSACTION_ATTACHMENT_BYTES,
@@ -425,9 +426,8 @@ export function TransactionFormDialog({
     const a = Number(amount);
     if (rate == null || !Number.isFinite(rate) || !Number.isFinite(a) || a <= 0)
       return null;
-    const net = a / (1 + rate / 100);
-    const vat = a - net;
-    return { net, vat };
+    const { net_amount, vat_amount } = splitVat(a, rate);
+    return { net: net_amount, vat: vat_amount };
   }, [showVat, vatRate, amount]);
 
   useEffect(() => {
@@ -1775,7 +1775,9 @@ function buildInsertPayload(
             : null,
       };
     }
-    case "expense":
+    case "expense": {
+      const rate = v.vat_rate == null ? null : Number(v.vat_rate);
+      const vat = rate == null ? null : splitVat(Number(v.amount), rate);
       return {
         ...common,
         expense_type_id: v.expense_type_id,
@@ -1783,12 +1785,11 @@ function buildInsertPayload(
         from_account_id: v.paid_by === "business" ? v.from_account_id : null,
         partner_id: v.paid_by === "partner" ? v.partner_id : null,
         to_account_id: null,
-        vat_rate: v.vat_rate == null ? null : Number(v.vat_rate),
-        vat_amount:
-          v.vat_rate == null ? null : Number(v.amount) - Number(v.amount) / (1 + Number(v.vat_rate) / 100),
-        net_amount:
-          v.vat_rate == null ? null : Number(v.amount) / (1 + Number(v.vat_rate) / 100),
+        vat_rate: rate,
+        vat_amount: vat?.vat_amount ?? null,
+        net_amount: vat?.net_amount ?? null,
       };
+    }
     case "other_income":
       return {
         ...common,
@@ -1797,23 +1798,20 @@ function buildInsertPayload(
         contact_id: null,
         partner_id: null,
       };
-    case "supplier_invoice":
+    case "supplier_invoice": {
+      const rate = v.vat_rate == null ? null : Number(v.vat_rate);
+      const vat = rate == null ? null : splitVat(Number(v.amount), rate);
       return {
         ...common,
         contact_id: v.contact_id,
         from_account_id: null,
         to_account_id: null,
         partner_id: null,
-        vat_rate: v.vat_rate == null ? null : Number(v.vat_rate),
-        vat_amount:
-          v.vat_rate == null
-            ? null
-            : Number(v.amount) - Number(v.amount) / (1 + Number(v.vat_rate) / 100),
-        net_amount:
-          v.vat_rate == null
-            ? null
-            : Number(v.amount) / (1 + Number(v.vat_rate) / 100),
+        vat_rate: rate,
+        vat_amount: vat?.vat_amount ?? null,
+        net_amount: vat?.net_amount ?? null,
       };
+    }
     case "supplier_payment":
       return {
         ...common,
