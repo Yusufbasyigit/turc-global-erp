@@ -244,8 +244,21 @@ export function aggregateMonthlyTotals(
   snapshots: FxSnapshot[],
   overrides: MonthlyFxOverride[],
 ): MonthAggregate {
-  const rate = resolveMonthlyRate(period, "TRY", overrides, snapshots);
+  const tryRate = resolveMonthlyRate(period, "TRY", overrides, snapshots);
   const totals = emptyTotals();
+
+  // Cache per-currency rate lookups. The headline `rate` returned to the
+  // banner stays TRY, but conversion now uses the row's own currency so
+  // EUR/GBP/etc. roll into USD totals instead of silently dropping out.
+  const rateCache = new Map<string, ResolvedRate>([["TRY", tryRate]]);
+  function rateFor(cur: string): ResolvedRate {
+    let r = rateCache.get(cur);
+    if (!r) {
+      r = resolveMonthlyRate(period, cur, overrides, snapshots);
+      rateCache.set(cur, r);
+    }
+    return r;
+  }
 
   for (const t of transactions) {
     if (istanbulYearMonth(t.transaction_date) !== period) continue;
@@ -262,10 +275,10 @@ export function aggregateMonthlyTotals(
     let usd: number | null = null;
     if (cur === "USD") {
       usd = native;
-    } else if (cur === "TRY") {
-      if (rate.value) usd = native * rate.value;
     } else {
-      totals.hasUnconverted = true;
+      const r = rateFor(cur);
+      if (r.value != null) usd = native * r.value;
+      else totals.hasUnconverted = true;
     }
 
     if (cur === "TRY") {
@@ -297,9 +310,9 @@ export function aggregateMonthlyTotals(
   const hasTry =
     totals.revenueTry > 0 ||
     totals.expenseTry > 0;
-  const hasMissingRate = hasTry && rate.value == null;
+  const hasMissingRate = hasTry && tryRate.value == null;
 
-  return { totals, rate, hasMissingRate };
+  return { totals, rate: tryRate, hasMissingRate };
 }
 
 function projectLabel(t: TransactionWithRelations): string {
@@ -370,6 +383,15 @@ export function useMonthlyPandL(period: string): MonthlyPandL {
     );
 
     const rows: PandLRow[] = [];
+    const rowRateCache = new Map<string, number | null>([
+      ["TRY", rate.value],
+    ]);
+    function rowRateValue(cur: string): number | null {
+      if (rowRateCache.has(cur)) return rowRateCache.get(cur) ?? null;
+      const v = resolveMonthlyRate(period, cur, overrides, snapshots).value;
+      rowRateCache.set(cur, v);
+      return v;
+    }
     for (const t of transactions) {
       if (istanbulYearMonth(t.transaction_date) !== period) continue;
 
@@ -383,8 +405,12 @@ export function useMonthlyPandL(period: string): MonthlyPandL {
       const cur = t.currency.toUpperCase();
 
       let usd: number | null = null;
-      if (cur === "USD") usd = native;
-      else if (cur === "TRY" && rate.value) usd = native * rate.value;
+      if (cur === "USD") {
+        usd = native;
+      } else {
+        const r = rowRateValue(cur);
+        if (r) usd = native * r;
+      }
 
       rows.push({
         id: t.id,
@@ -481,10 +507,20 @@ export function useNetPandLTrend(periods: number = 12, anchor?: string): Trend {
     const overrides = overrideData ?? [];
 
     const buckets = new Map<string, { rev: number; exp: number; convertible: boolean }>();
-    const tryRateByPeriod = new Map<string, number | null>();
     for (const p of list) {
       buckets.set(p, { rev: 0, exp: 0, convertible: true });
-      tryRateByPeriod.set(p, resolveMonthlyRate(p, "TRY", overrides, snapshots).value);
+    }
+    // Cache rate lookups by (period, currency) so a 12-month trend doesn't
+    // re-resolve EUR/GBP/... once per row.
+    const rateByPeriodCurrency = new Map<string, number | null>();
+    function rateValueFor(period: string, cur: string): number | null {
+      const key = `${period}|${cur}`;
+      if (rateByPeriodCurrency.has(key)) {
+        return rateByPeriodCurrency.get(key) ?? null;
+      }
+      const v = resolveMonthlyRate(period, cur, overrides, snapshots).value;
+      rateByPeriodCurrency.set(key, v);
+      return v;
     }
 
     for (const t of txData ?? []) {
@@ -500,12 +536,10 @@ export function useNetPandLTrend(periods: number = 12, anchor?: string): Trend {
       let usd: number | null = null;
       if (cur === "USD") {
         usd = native;
-      } else if (cur === "TRY") {
-        const rate = tryRateByPeriod.get(p) ?? null;
+      } else {
+        const rate = rateValueFor(p, cur);
         if (rate) usd = native * rate;
         else bucket.convertible = false;
-      } else {
-        bucket.convertible = false;
       }
 
       if (usd != null) {

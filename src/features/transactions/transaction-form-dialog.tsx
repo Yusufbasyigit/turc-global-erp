@@ -351,14 +351,14 @@ export function TransactionFormDialog({
   );
 
   useEffect(() => {
-    if (kind !== "client_payment") return;
+    if (kind !== "client_payment" && kind !== "client_refund") return;
     const bc = selectedCustomer?.balance_currency ?? "";
     form.setValue("contact_balance_currency", bc, { shouldValidate: false });
     if (bc) form.setValue("fx_target_currency", bc, { shouldValidate: false });
   }, [kind, selectedCustomer, form]);
 
   const showFxBlock =
-    kind === "client_payment" &&
+    (kind === "client_payment" || kind === "client_refund") &&
     selectedCustomer?.balance_currency &&
     selectedCustomer.balance_currency !== currency;
 
@@ -628,7 +628,8 @@ export function TransactionFormDialog({
         "currency",
         "transaction_date",
       ];
-      if (kind === "client_payment") base.push("fx_rate_applied");
+      if (kind === "client_payment" || kind === "client_refund")
+        base.push("fx_rate_applied");
       if (kind === "supplier_invoice") base.push("reference_number");
       return base;
     }
@@ -1756,14 +1757,24 @@ function buildInsertPayload(
             : null,
       };
     }
-    case "client_refund":
+    case "client_refund": {
+      const needsFx =
+        v.contact_balance_currency &&
+        v.contact_balance_currency !== v.currency;
       return {
         ...common,
         contact_id: v.contact_id,
         from_account_id: v.from_account_id,
         to_account_id: null,
         partner_id: null,
+        fx_rate_applied: needsFx && v.fx_rate_applied ? Number(v.fx_rate_applied) : null,
+        fx_target_currency: needsFx ? v.contact_balance_currency : null,
+        fx_converted_amount:
+          needsFx && v.fx_rate_applied
+            ? Number(v.amount) * Number(v.fx_rate_applied)
+            : null,
       };
+    }
     case "expense":
       return {
         ...common,
