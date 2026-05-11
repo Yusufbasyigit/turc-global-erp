@@ -27,6 +27,7 @@ import {
   loadOrder,
   snapshotFromProduct,
 } from "./mutation-helpers";
+import { checkOrderCurrencyChange } from "./order-currency-lock";
 
 export async function uploadCustomerPo(
   orderId: string,
@@ -185,6 +186,48 @@ export async function updateOrder(input: {
   const supabase = createClient();
   const userId = await currentUserId();
   const now = new Date().toISOString();
+
+  // Changing order_currency once priced lines or a shipment_billing accrual
+  // exist would silently re-denominate the unit_sales_price / purchase_price
+  // snapshots and the booked transaction rows (SUM is currency-blind). Mirror
+  // the four other write-side guards documented in the 2026-05-08 entry.
+  if (input.payload.order_currency !== undefined) {
+    const { data: existing, error: existingErr } = await supabase
+      .from("orders")
+      .select("order_currency, billing_shipment_id")
+      .eq("id", input.id)
+      .maybeSingle();
+    if (existingErr) throw existingErr;
+    if (existing && existing.order_currency !== input.payload.order_currency) {
+      const { count: pricedCount, error: detailErr } = await supabase
+        .from("order_details")
+        .select("id", { count: "exact", head: true })
+        .eq("order_id", input.id)
+        .or(
+          "unit_sales_price.not.is.null,est_purchase_unit_price.not.is.null,actual_purchase_price.not.is.null",
+        );
+      if (detailErr) throw detailErr;
+
+      let billingCount = 0;
+      if (existing.billing_shipment_id) {
+        const { count: txCount, error: txErr } = await supabase
+          .from("transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("related_shipment_id", existing.billing_shipment_id)
+          .eq("kind", "shipment_billing");
+        if (txErr) throw txErr;
+        billingCount = txCount ?? 0;
+      }
+
+      const verdict = checkOrderCurrencyChange({
+        currentCurrency: existing.order_currency,
+        nextCurrency: input.payload.order_currency,
+        pricedLineCount: pricedCount ?? 0,
+        billingAccrualCount: billingCount,
+      });
+      if (!verdict.ok) throw new Error(verdict.message);
+    }
+  }
 
   let nextPath: string | null | undefined = undefined;
   if (input.removeAttachment && input.previousAttachmentPath) {
